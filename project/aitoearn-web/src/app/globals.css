@@ -73,28 +73,28 @@ button {
 }
 
 :root {
-  --gradientBackColor: linear-gradient(to right in oklch, var(--brand-purple), var(--brand-cyan));
+  --gradientBackColor: linear-gradient(90deg, var(--brand-cyan), var(--brand-purple));
   /* 品牌色 */
-  --brand-purple: oklch(0.74 0.17 3);
-  --brand-cyan: oklch(0.71 0.17 294);
+  --brand-purple: #7c8cff;
+  --brand-cyan: #38bdf8;
   --gradient-foreground: oklch(0.985 0 0);
   /* Section 交替背景色 */
-  --section-alt-bg: #f8f9fa;
+  --section-alt-bg: #f3f8fd;
 
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
+  --background: #f8fbff;
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
   --primary: var(--brand-cyan);
-  --primary-foreground: oklch(0.145 0 0);
-  --secondary: oklch(0.97 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: #f3f8fd;
   --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
+  --muted: #f3f8fd;
   --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
+  --accent: #eaf6ff;
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
@@ -104,25 +104,27 @@ button {
   --warning-foreground: oklch(0.2 0 0);
   --info: oklch(0.6 0.18 250);
   --info-foreground: oklch(0.985 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
+  --border: #dcebfa;
+  --input: #dcebfa;
   --ring: var(--brand-cyan);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: color-mix(in oklch, var(--brand-cyan) 3%, var(--background));
+  --sidebar: #f6faff;
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--brand-cyan);
   --sidebar-primary-foreground: var(--gradient-foreground);
-  --sidebar-accent: color-mix(in oklch, var(--brand-cyan) 10%, var(--background));
-  --sidebar-accent-foreground: var(--foreground);
-  --sidebar-border: color-mix(in oklch, var(--border) 50%, transparent);
+  --sidebar-accent: #eaf6ff;
+  --sidebar-accent-foreground: #2f8cff;
+  --sidebar-border: #dcebfa;
   --sidebar-ring: var(--brand-cyan);
 }
 
 .dark {
+  --brand-purple: #8b7cff;
+  --brand-cyan: #38bdf8;
   --gradient-foreground: oklch(0.985 0 0);
   --section-alt-bg: rgba(255, 255, 255, 0.03);
   --background: oklch(0.145 0 0);
@@ -131,8 +133,8 @@ button {
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: var(--brand-purple);
-  --primary-foreground: oklch(0.145 0 0);
+  --primary: var(--brand-cyan);
+  --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
