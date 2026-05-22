@@ -2,15 +2,17 @@
   "seo": {
     "loginTitle": "Sign In - Access Your AI Content Workspace",
     "loginKeywords": "login, sign in, AiToEarn account, AI platform login, content creator login, social media management",
-    "loginDescription": "Sign in to your AiToEarn account to start your AI creative journey. Supports Google login and email verification code login."
+    "loginDescription": "Sign in to your AiToEarn account with your email and password to start your AI creative journey."
   },
   "welcomeBack": "Sign in",
   "loginSubtitle": "Let's use AltoEarn!",
   "emailPlaceholder": "Enter your email address",
+  "passwordPlaceholder": "Enter your password",
   "login": "Sign in",
   "or": "or",
   "emailRequired": "Please enter your email",
   "emailInvalid": "Please enter a valid email address",
+  "passwordRequired": "Please enter your password",
   "emailCodeRequired": "Please enter verification code",
   "emailCodeLength": "Verification code must be 6 digits",
   "enterCode": "Enter 6-digit code",

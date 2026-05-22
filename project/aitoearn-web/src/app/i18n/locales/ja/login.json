@@ -2,15 +2,17 @@
   "seo": {
     "loginTitle": "ログイン - AIコンテンツワークスペースにアクセス",
     "loginKeywords": "ログイン, サインイン, AiToEarnアカウント, AIプラットフォームログイン, クリエイターログイン, SNS管理",
-    "loginDescription": "AiToEarnアカウントにサインインして、AIクリエイティブの旅を始めましょう。Googleログインとメール認証コードに対応しています。"
+    "loginDescription": "メールアドレスとパスワードでAiToEarnアカウントにサインインして、AIクリエイティブの旅を始めましょう。"
   },
   "welcomeBack": "サインイン",
   "loginSubtitle": "AltoEarnを使いましょう！",
   "emailPlaceholder": "メールアドレスを入力",
+  "passwordPlaceholder": "パスワードを入力",
   "login": "サインイン",
   "or": "または",
   "emailRequired": "メールアドレスを入力してください",
   "emailInvalid": "有効なメールアドレスを入力してください",
+  "passwordRequired": "パスワードを入力してください",
   "emailCodeRequired": "認証コードを入力してください",
   "emailCodeLength": "認証コードは6桁の数字である必要があります",
   "enterCode": "6桁のコードを入力",

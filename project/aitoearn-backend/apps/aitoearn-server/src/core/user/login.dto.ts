@@ -21,6 +21,13 @@ export const MailVerifySchema = z.object({
 
 export class MailVerifyDto extends createZodDto(MailVerifySchema, 'MailVerifyDto') {}
 
+export const MailPasswordLoginSchema = z.object({
+  mail: z.string().email().describe('邮箱'),
+  password: z.string().min(1).describe('密码'),
+})
+
+export class MailPasswordLoginDto extends createZodDto(MailPasswordLoginSchema, 'MailPasswordLoginDto') {}
+
 export const MailRepasswordVerifySchema = z.object({
   mail: z.string().email().describe('邮箱'),
   code: z.string().describe('验证码'),

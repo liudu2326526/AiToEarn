@@ -18,6 +18,9 @@ export {
 // Hooks
 export { usePlugin, usePluginLogin, usePluginPublish, usePluginWorkflow } from './hooks'
 
+// MultiPost fallback
+export { buildMultiPostXhsAccountData } from './multipost.adapter'
+
 // Platform Interaction (平台交互模块 - 点赞、评论、收藏等)
 export { douyinInteraction, platformManager, xhsInteraction } from './plats'
 export type {

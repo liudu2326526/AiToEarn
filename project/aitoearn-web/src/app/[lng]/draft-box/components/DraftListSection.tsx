@@ -25,6 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
+import { getOssUrl } from '@/utils/oss'
 import { AllListSection } from './AllListSection'
 import { BatchActionBar } from './BatchActionBar'
 import { ConditionalDeleteDialog } from './ConditionalDeleteDialog'
@@ -83,7 +84,7 @@ interface DraftCardProps {
 // 草稿卡片组件（小红书风格）
 const DraftCard = memo(({ material, onClick, batchMode, selected, onToggleSelect, useCountLabel }: DraftCardProps) => {
   const { t } = useTransClient('brandPromotion')
-  const coverUrl = material.coverUrl || '/images/placeholder.png'
+  const coverUrl = material.coverUrl ? getOssUrl(material.coverUrl) : '/images/placeholder.png'
 
   const handleClick = useCallback(() => {
     if (batchMode) {

@@ -15,6 +15,7 @@ import type { PluginPlatformType } from '@/store/plugin'
 import lodash from 'lodash'
 import { create } from 'zustand'
 import { combine } from 'zustand/middleware'
+import { createOrUpdateAccountApi } from '@/api/account'
 import { apiCheckBilibiliAuth, apiGetBilibiliLoginUrl } from '@/api/plat/bilibili'
 import { createDouyinAuth, getDouyinAuthStatus } from '@/api/plat/douyin'
 import { createKwaiAuth, getKwaiAuthStatus } from '@/api/plat/kwai'
@@ -39,6 +40,7 @@ import i18next from '@/app/i18n/client'
 import { toast } from '@/lib/toast'
 import { useAccountStore } from '@/store/account'
 import {
+  buildMultiPostXhsAccountData,
   isPluginPlatformAccountReady,
   PLUGIN_SUPPORTED_PLATFORMS,
   PluginStatus,
@@ -520,9 +522,13 @@ export const useChannelManagerStore = create(
       async handlePluginPlatformAuth(platform: PluginPlatformType, spaceId?: string) {
         const pluginStore = usePluginStore.getState()
         const platformName = AccountPlatInfoMap.get(platform)?.name || platform
+        const hasAiToEarnPlugin = typeof window !== 'undefined' && !!window.AIToEarnPlugin
 
         // 检查插件是否就绪
-        if (pluginStore.status !== PluginStatus.READY) {
+        const pluginReady = pluginStore.status === PluginStatus.READY
+          || await pluginStore.checkPermission(true)
+
+        if (!pluginReady) {
           // 插件未就绪，重置状态并打开插件弹框
           set({
             currentView: 'connect-list',
@@ -531,6 +537,36 @@ export const useChannelManagerStore = create(
           toast.warning(t('channelManager.pluginNotReady', { platform: platformName }))
           // 打开插件弹框引导用户安装/授权
           pluginStore.openPluginModal()
+          return
+        }
+
+        if (platform === PlatType.Xhs && !hasAiToEarnPlugin) {
+          try {
+            const result = await createOrUpdateAccountApi(
+              buildMultiPostXhsAccountData(spaceId) as Partial<SocialAccount>,
+            )
+
+            if (result?.code === 0 && result.data) {
+              toast.success(t('channelManager.syncSuccess'))
+              await useAccountStore.getState().getAccountList()
+              methods.handleAuthSuccess(result.data)
+            }
+            else {
+              set({
+                currentView: 'connect-list',
+                authState: { ...initialAuthState },
+              })
+              toast.error(result?.message || t('channelManager.syncFailed'))
+            }
+          }
+          catch (error) {
+            console.error('MultiPost Rednote account import error:', error)
+            set({
+              currentView: 'connect-list',
+              authState: { ...initialAuthState },
+            })
+            toast.error(t('channelManager.syncFailed'))
+          }
           return
         }
 

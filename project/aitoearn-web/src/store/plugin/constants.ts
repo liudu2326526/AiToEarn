@@ -12,7 +12,7 @@ export const DEFAULT_POLLING_INTERVAL = 2000
  */
 export const PLUGIN_DOWNLOAD_LINKS = {
   chrome:
-    'https://chromewebstore.google.com/detail/aitoearn-extension/hnmocdhmnfgcjnedmdgfefcobideaeja',
+    'https://chromewebstore.google.com/detail/multipost/dhohkaclnjgcikfoaacfgijgjgceofih',
   china: 'https://ai-to-earn.oss-cn-beijing.aliyuncs.com/comment/aitoearn-extension.crx',
   github: 'https://github.com/yikart/AiToEarn/releases/download/v2.1.0/aitoearn-extension.crx',
 } as const

@@ -12,7 +12,11 @@ export function getOssUrl(path?: string) {
   ) {
     return path
   }
-  return `${process.env.NEXT_PUBLIC_OSS_URL}${path}`
+  const baseUrl = process.env.NEXT_PUBLIC_OSS_URL
+  if (!baseUrl)
+    return path
+
+  return `${baseUrl.replace(/\/$/, '')}/${path.replace(/^\//, '')}`
 }
 
 // 将完整的oss url转为代理的 oss url

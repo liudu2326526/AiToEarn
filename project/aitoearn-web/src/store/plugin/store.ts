@@ -9,6 +9,7 @@ import type {
   ProgressCallback,
   ProgressEvent,
   PublishParams,
+  PublishResult,
   PublishTask,
   PublishTaskListConfig,
   WxSphLinkAnchor,
@@ -34,6 +35,12 @@ import { generateUUID, parseTopicString } from '@/utils'
 import { getOssUrl } from '@/utils/oss'
 import { isPluginPlatformAccountReady } from './account.utils'
 import { DEFAULT_POLLING_INTERVAL } from './constants'
+import {
+  canUseMultiPost,
+  probeMultiPostExtension,
+  publishWithMultiPost,
+  requestMultiPostTrustDomain,
+} from './multipost.adapter'
 import {
   buildPluginPlatformConfig,
   calculateOverallStatus,
@@ -105,7 +112,7 @@ export type PlatformAccountsMap = Record<PluginPlatformType, PlatAccountInfo | n
 
 /** 错误消息 */
 const ERROR_MESSAGES = {
-  PLUGIN_NOT_INSTALLED: '请先安装 Aitoearn 浏览器插件',
+  PLUGIN_NOT_INSTALLED: '请先安装 Aitoearn 或 MultiPost 浏览器插件',
   PLUGIN_NOT_READY: '插件未就绪，请先授权插件权限',
   PUBLISHING_IN_PROGRESS: '当前正在发布中，请稍后再试',
 } as const
@@ -158,6 +165,10 @@ function getPluginApiBaseUrl() {
     return apiBaseUrl
 
   return new URL(apiBaseUrl, window.location.origin).toString()
+}
+
+function hasAiToEarnPlugin() {
+  return typeof window !== 'undefined' && !!window.AIToEarnPlugin
 }
 
 async function notifyWxSphLoginRequired() {
@@ -368,13 +379,23 @@ export const usePluginStore = create(
 
       /** 检查插件是否安装 */
       checkPlugin() {
-        const isAvailable = typeof window !== 'undefined' && !!window.AIToEarnPlugin
+        const isAvailable = hasAiToEarnPlugin()
 
-        if (!isAvailable) {
+        if (!isAvailable && typeof window === 'undefined') {
           methods.clearPluginVersion()
           set({ status: Status.NOT_INSTALLED })
           return false
         }
+
+        if (!isAvailable) {
+          methods.clearPluginVersion()
+          const currentStatus = get().status
+          if (currentStatus === Status.UNKNOWN || currentStatus === Status.NOT_INSTALLED) {
+            set({ status: Status.CHECKING })
+          }
+          return true
+        }
+
         const currentStatus = get().status
         if (currentStatus === Status.UNKNOWN || currentStatus === Status.NOT_INSTALLED) {
           set({ status: Status.CHECKING })
@@ -383,11 +404,38 @@ export const usePluginStore = create(
       },
 
       /** 检查插件权限 */
-      async checkPermission() {
-        const isInstalled = typeof window !== 'undefined' && !!window.AIToEarnPlugin
+      async checkPermission(requestTrust = false) {
+        const isInstalled = hasAiToEarnPlugin()
         if (!isInstalled) {
+          const probe = await probeMultiPostExtension()
+          if (!probe.installed) {
+            methods.clearPluginVersion()
+            set({ status: Status.NOT_INSTALLED })
+            return false
+          }
+
+          if (probe.trusted) {
+            methods.clearPluginVersion()
+            set({ status: Status.READY })
+            return true
+          }
+
+          if (requestTrust) {
+            try {
+              const trusted = await requestMultiPostTrustDomain()
+              if (trusted) {
+                methods.clearPluginVersion()
+                set({ status: Status.READY })
+                return true
+              }
+            }
+            catch (error) {
+              console.error('MultiPost 授权失败:', error)
+            }
+          }
+
           methods.clearPluginVersion()
-          set({ status: Status.NOT_INSTALLED })
+          set({ status: Status.INSTALLED_NO_PERMISSION })
           return false
         }
         try {
@@ -455,8 +503,10 @@ export const usePluginStore = create(
         // 设置初始化状态
         set({ isInitializing: true })
 
-        // 先将所有插件支持的平台账号设为离线
-        methods.setAllPluginAccountsOffline()
+        // 原 AiToEarn 插件可同步平台账号状态；MultiPost fallback 只负责发布，不改账号状态。
+        if (hasAiToEarnPlugin()) {
+          methods.setAllPluginAccountsOffline()
+        }
 
         const isInstalled = methods.checkPlugin()
         if (!isInstalled) {
@@ -524,6 +574,8 @@ export const usePluginStore = create(
       async refreshAllPlatformAccounts() {
         const { status } = get()
         if (status !== Status.READY)
+          return
+        if (!hasAiToEarnPlugin())
           return
 
         const accounts: Partial<PlatformAccountsMap> = {}
@@ -687,8 +739,8 @@ export const usePluginStore = create(
         })
 
         try {
-          const result = await window.AIToEarnPlugin!.publish(params, (progress) => {
-            // 更新该账号的进度
+          const plugin = typeof window !== 'undefined' ? window.AIToEarnPlugin : undefined
+          const handleProgress = (progress: ProgressEvent) => {
             const updatedProgress = new Map(get().platformProgress)
             updatedProgress.set(publishKey, progress)
             set({
@@ -696,7 +748,21 @@ export const usePluginStore = create(
               platformProgress: updatedProgress,
             })
             onProgress?.(progress)
-          })
+          }
+
+          let result: PublishResult
+          if (plugin) {
+            result = await plugin.publish(params, (progress) => {
+              // 更新该账号的进度
+              handleProgress(progress)
+            })
+          }
+          else if (canUseMultiPost(params)) {
+            result = await publishWithMultiPost(params, handleProgress)
+          }
+          else {
+            throw new Error(ERROR_MESSAGES.PLUGIN_NOT_INSTALLED)
+          }
 
           // 发布完成，移除该账号的发布状态，更新进度为完成
           const updatedPlatforms = new Set(get().publishingPlatforms)

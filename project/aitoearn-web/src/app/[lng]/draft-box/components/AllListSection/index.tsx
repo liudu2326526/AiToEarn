@@ -79,7 +79,7 @@ const AllDraftCard = memo(({ material, onClick, batchMode, selected, onToggleSel
   selected?: boolean
   onToggleSelect?: () => void
 }) => {
-  const coverUrl = material.coverUrl || '/images/placeholder.png'
+  const coverUrl = material.coverUrl ? getOssUrl(material.coverUrl) : '/images/placeholder.png'
 
   const handleClick = useCallback(() => {
     if (batchMode) {

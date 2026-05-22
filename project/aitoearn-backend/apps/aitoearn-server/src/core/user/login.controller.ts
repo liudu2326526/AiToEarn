@@ -7,12 +7,14 @@ import { RedisService } from '@yikart/redis'
 
 import { RateLimit, RateLimitGuard } from '../../common/guards'
 import { getRandomString } from '../../common/utils'
-import { encryptPassword } from '../../common/utils/password.util'
+import { encryptPassword, validatePassWord } from '../../common/utils/password.util'
 import { config } from '../../config'
 import {
   GoogleLoginDto,
   MailLoginDto,
   MailLoginSchema,
+  MailPasswordLoginDto,
+  MailPasswordLoginSchema,
   MailRepasswordDto,
   MailRepasswordVerifyDto,
   MailRepasswordVerifySchema,
@@ -100,6 +102,40 @@ export class LoginController {
 
     return {
       type: isNewUser ? 'regist' : 'login',
+      token,
+      exp: tokenInfo.exp,
+      userInfo,
+    }
+  }
+
+  @ApiDoc({
+    summary: '邮箱密码登录',
+    description: '通过邮箱和密码登录已有用户。',
+    body: MailPasswordLoginSchema,
+  })
+  @Public()
+  @RateLimit({ ttl: 60, limit: 5, keyGenerator: req => `mailPassword:${req.body.mail}` })
+  @Post('password')
+  async loginByPassword(@Body() body: MailPasswordLoginDto) {
+    const { mail, password } = body
+
+    const userInfo = await this.userService.getUserInfoByMail(mail, true)
+    if (!userInfo || userInfo.isDelete)
+      throw new AppException(ResponseCode.UserPasswordError)
+
+    if (userInfo.status === UserStatus.STOP)
+      throw new AppException(ResponseCode.UserStatusError)
+
+    if (!userInfo.password || !userInfo.salt || !validatePassWord(userInfo.password, userInfo.salt, password))
+      throw new AppException(ResponseCode.UserPasswordError)
+
+    const token = this.authService.generateToken(userInfo)
+    const tokenInfo = this.authService.decodeToken(token)
+
+    this.userService.afterLogin(userInfo)
+
+    return {
+      type: 'login',
       token,
       exp: tokenInfo.exp,
       userInfo,

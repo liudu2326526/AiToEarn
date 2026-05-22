@@ -2,15 +2,17 @@
   "seo": {
     "loginTitle": "Anmelden - Zugang zu Ihrem KI-Content-Arbeitsbereich",
     "loginKeywords": "Anmelden, Login, AiToEarn-Konto, KI-Plattform-Login, Creator-Login, Social-Media-Management",
-    "loginDescription": "Melden Sie sich bei Ihrem AiToEarn-Konto an, um Ihre KI-Kreativreise zu beginnen. Unterstützt Google-Anmeldung und E-Mail-Bestätigungscode."
+    "loginDescription": "Melden Sie sich mit E-Mail und Passwort bei Ihrem AiToEarn-Konto an, um Ihre KI-Kreativreise zu beginnen."
   },
   "welcomeBack": "Anmelden",
   "loginSubtitle": "Lass uns AltoEarn nutzen!",
   "emailPlaceholder": "Geben Sie Ihre E-Mail-Adresse ein",
+  "passwordPlaceholder": "Passwort eingeben",
   "login": "Anmelden",
   "or": "oder",
   "emailRequired": "Bitte geben Sie Ihre E-Mail ein",
   "emailInvalid": "Bitte geben Sie eine gültige E-Mail-Adresse ein",
+  "passwordRequired": "Bitte geben Sie Ihr Passwort ein",
   "emailCodeRequired": "Bitte geben Sie den Bestätigungscode ein",
   "emailCodeLength": "Bestätigungscode muss 6 Ziffern haben",
   "enterCode": "6-stelligen Code eingeben",

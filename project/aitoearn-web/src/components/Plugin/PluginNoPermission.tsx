@@ -19,6 +19,8 @@ import { usePluginStore } from '@/store/plugin'
 export function PluginNoPermission() {
   const { t } = useTranslation('plugin')
   const init = usePluginStore(state => state.init)
+  const checkPermission = usePluginStore(state => state.checkPermission)
+  const refreshAllPlatformAccounts = usePluginStore(state => state.refreshAllPlatformAccounts)
   const closePluginModal = usePluginStore(state => state.closePluginModal)
   const closeChannelManager = useChannelManagerStore(state => state.closeModal)
   const [checking, setChecking] = useState(false)
@@ -27,7 +29,13 @@ export function PluginNoPermission() {
   const handleCheckPermission = async () => {
     setChecking(true)
     try {
-      await init()
+      const granted = await checkPermission(true)
+      if (granted) {
+        await refreshAllPlatformAccounts()
+      }
+      else {
+        await init()
+      }
     }
     finally {
       setChecking(false)
