@@ -19,7 +19,6 @@ import { usePlanDetailStore } from '@/app/[lng]/brand-promotion/planDetailStore'
 import { AccountPlatInfoMap, TASK_EXCLUDED_PLATFORMS, TaskPlatInfoArr } from '@/app/config/platConfig'
 import { useTransClient } from '@/app/i18n/client'
 import { Input } from '@/components/ui/input'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useMediaUpload } from '@/hooks/useMediaUpload'
 import { useGetClientLng } from '@/hooks/useSystem'
 import { toast } from '@/lib/toast'
@@ -1719,16 +1718,15 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
           <div className="flex flex-col gap-1 px-1 sm:flex-row sm:items-center">
             <div className="flex shrink-0 items-center gap-1 text-xs font-normal text-muted-foreground/65 sm:w-24">
               <span>{t('detail.systemCaptionPrompt')}</span>
-              <TooltipProvider delayDuration={120}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <CircleHelp className="h-2.5 w-2.5 cursor-help text-muted-foreground/50 hover:text-muted-foreground" />
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-64 text-xs leading-5">
-                    {t('detail.systemCaptionPromptTip')}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <span
+                aria-label={t('detail.systemCaptionPromptTip')}
+                role="img"
+                tabIndex={0}
+                title={t('detail.systemCaptionPromptTip')}
+                className="inline-flex h-3 w-3 shrink-0 cursor-help items-center justify-center text-muted-foreground/50 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <CircleHelp className="h-2.5 w-2.5" aria-hidden="true" />
+              </span>
             </div>
             <Input
               className="h-5 rounded-none border-x-0 border-t-0 border-b border-dashed border-border/35 bg-transparent px-0 py-0 text-xs leading-none text-muted-foreground/75 shadow-none md:text-xs focus-visible:border-muted-foreground/55 focus-visible:text-foreground focus-visible:ring-0"
