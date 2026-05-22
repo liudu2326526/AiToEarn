@@ -15,6 +15,7 @@ import { OpenaiService } from '../libs/openai'
 import { ModelsConfigService } from '../models-config'
 import { calculatePricingPoints, ChatPricing } from '../pricing/pricing-calculator'
 import { AsyncSettlementService } from '../settlement'
+import { config } from '../../../config'
 import {
   GeminiImageGenerationDto,
   ImageEditDto,
@@ -29,6 +30,9 @@ import {
 } from './image.dto'
 
 type Uploadable = File | Response
+type GeneratedImageRef = { url?: string, b64_json?: string }
+
+const MUSKAPIS_CHAT_IMAGE_MODELS = new Set(['gpt-image-2', 'gpt-image-2-fast'])
 
 @Injectable()
 export class ImageService {
@@ -52,6 +56,124 @@ export class ImageService {
       : this.modelsConfigService.config.image.edit.find(item => item.name === model)
 
     return modelConfig?.runtimeModel ?? model
+  }
+
+  private isMuskapisChatImageModel(model: string): boolean {
+    return MUSKAPIS_CHAT_IMAGE_MODELS.has(model)
+  }
+
+  private collectMuskapisImageRefs(value: unknown, refs: GeneratedImageRef[], seen: Set<string>): void {
+    if (value == null) {
+      return
+    }
+
+    if (typeof value === 'string') {
+      const text = value.trim()
+      if ((text.startsWith('{') && text.endsWith('}')) || (text.startsWith('[') && text.endsWith(']'))) {
+        try {
+          this.collectMuskapisImageRefs(JSON.parse(text), refs, seen)
+          return
+        }
+        catch {
+          // Continue with regex extraction below.
+        }
+      }
+
+      const dataUris = text.match(/data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/g) || []
+      for (const dataUri of dataUris) {
+        const b64_json = dataUri.split(',')[1]
+        if (b64_json && !seen.has(b64_json)) {
+          seen.add(b64_json)
+          refs.push({ b64_json })
+        }
+      }
+
+      const urls = text.match(/https?:\/\/[^\s"'<>),]+/g) || []
+      for (const url of urls) {
+        if (!seen.has(url)) {
+          seen.add(url)
+          refs.push({ url })
+        }
+      }
+      return
+    }
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        this.collectMuskapisImageRefs(item, refs, seen)
+      }
+      return
+    }
+
+    if (typeof value === 'object') {
+      const record = value as Record<string, unknown>
+      if (typeof record['url'] === 'string') {
+        if (record['url'].startsWith('data:image/')) {
+          this.collectMuskapisImageRefs(record['url'], refs, seen)
+        }
+        else if (!seen.has(record['url'])) {
+          seen.add(record['url'])
+          refs.push({ url: record['url'] })
+        }
+      }
+      if (typeof record['b64_json'] === 'string' && !seen.has(record['b64_json'])) {
+        seen.add(record['b64_json'])
+        refs.push({ b64_json: record['b64_json'] })
+      }
+      if (typeof record['data'] === 'string' && record['data'].startsWith('data:image/')) {
+        this.collectMuskapisImageRefs(record['data'], refs, seen)
+      }
+      if (typeof record['image_url'] === 'object') {
+        this.collectMuskapisImageRefs(record['image_url'], refs, seen)
+      }
+      for (const item of Object.values(record)) {
+        this.collectMuskapisImageRefs(item, refs, seen)
+      }
+    }
+  }
+
+  private async createMuskapisImageGeneration(params: Omit<OpenAI.Images.ImageGenerateParams, 'user'>): Promise<OpenAI.Images.ImagesResponse> {
+    const apiKey = config.ai.muskapis?.apiKey || config.ai.openai.apiKey
+    const imageGenerationsUrl = config.ai.muskapis?.imageGenerationsUrl || 'https://api.muskapis.com/v1/images/generations'
+
+    if (!apiKey) {
+      throw new BadRequestException('Muskapis API key is required for GPT Image 2 generation')
+    }
+
+    const response = await fetch(imageGenerationsUrl, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${apiKey}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: params.model,
+        prompt: params.prompt,
+        n: params.n,
+        size: params.size,
+        quality: params.quality,
+        response_format: params.response_format,
+        stream: false,
+      }),
+    })
+
+    if (!response.ok) {
+      const message = await response.text().catch(() => response.statusText)
+      throw new BadRequestException(`Muskapis image generation failed: ${response.status} ${message}`)
+    }
+
+    const payload = await response.json() as Record<string, unknown>
+    const refs: GeneratedImageRef[] = []
+    this.collectMuskapisImageRefs(payload, refs, new Set())
+
+    if (refs.length === 0) {
+      throw new BadRequestException('Muskapis image generation returned no image')
+    }
+
+    return {
+      created: typeof payload['created'] === 'number' ? payload['created'] : Math.floor(Date.now() / 1000),
+      data: refs.slice(0, params.n || refs.length),
+    } as OpenAI.Images.ImagesResponse
   }
 
   /**
@@ -122,7 +244,12 @@ export class ImageService {
       delete params.style
     }
 
-    const result = await this.openaiService.createImageGeneration({
+    const result = this.isMuskapisChatImageModel(runtimeModel)
+      ? await this.createMuskapisImageGeneration({
+          ...params,
+          model: runtimeModel,
+        } as Omit<OpenAI.Images.ImageGenerateParams, 'user'>)
+      : await this.openaiService.createImageGeneration({
       ...params,
       model: runtimeModel,
     } as Omit<OpenAI.Images.ImageGenerateParams, 'user'> & { apiKey?: string })

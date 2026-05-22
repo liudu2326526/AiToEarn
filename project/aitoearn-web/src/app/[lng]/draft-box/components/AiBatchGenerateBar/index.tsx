@@ -652,12 +652,12 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
     setResolution(newConfig.resolution)
     setModelType(newConfig.modelType)
     setSelectedVideoModels(newConfig.selectedVideoModels.length > 0
-      ? newConfig.selectedVideoModels
+      ? newConfig.selectedVideoModels.slice(0, 1)
       : (newConfig.modelType ? [newConfig.modelType] : []))
     setContentType(newConfig.contentType)
     setImageModel(newConfig.imageModel)
     setSelectedImageModels(newConfig.selectedImageModels.length > 0
-      ? newConfig.selectedImageModels
+      ? newConfig.selectedImageModels.slice(0, 1)
       : (newConfig.imageModel ? [newConfig.imageModel] : []))
     setImageCount(newConfig.imageCount)
     setImageSize(newConfig.imageSize)
@@ -852,7 +852,7 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
       setModelType(configSnapshot.modelType)
     }
     const nextSelectedVideoModels = configSnapshot.selectedVideoModels.length > 0
-      ? configSnapshot.selectedVideoModels
+      ? configSnapshot.selectedVideoModels.slice(0, 1)
       : (configSnapshot.modelType ? [configSnapshot.modelType] : [])
     if (!isEqual(nextSelectedVideoModels, selectedVideoModels)) {
       setSelectedVideoModels(nextSelectedVideoModels)
@@ -864,7 +864,7 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
       setImageModel(configSnapshot.imageModel)
     }
     const nextSelectedImageModels = configSnapshot.selectedImageModels.length > 0
-      ? configSnapshot.selectedImageModels
+      ? configSnapshot.selectedImageModels.slice(0, 1)
       : (configSnapshot.imageModel ? [configSnapshot.imageModel] : [])
     if (!isEqual(nextSelectedImageModels, selectedImageModels)) {
       setSelectedImageModels(nextSelectedImageModels)
@@ -1069,20 +1069,21 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
     if (models.length === 0)
       return
 
-    const modelInfos = models
+    const nextModels = models.slice(0, 1)
+    const modelInfos = nextModels
       .map(model => pricingData?.imageModels?.find(item => item.model === model))
       .filter((model): model is ImageModelInfo => Boolean(model))
     const commonRatios = getImageModelsCommonAspectRatios(modelInfos)
     const commonPricing = buildAggregateImagePricing(modelInfos)
-    if (modelInfos.length !== models.length || commonRatios.length === 0 || commonPricing.length === 0) {
+    if (modelInfos.length !== nextModels.length || commonRatios.length === 0 || commonPricing.length === 0) {
       toast.warning(t('detail.noCommonModelParams'))
       return
     }
 
-    const nextPrimaryModel = models[0]!
-    setSelectedImageModels(models)
+    const nextPrimaryModel = nextModels[0]!
+    setSelectedImageModels(nextModels)
     setImageModel(nextPrimaryModel)
-    updateConfig(configKey, { selectedImageModels: models, imageModel: nextPrimaryModel })
+    updateConfig(configKey, { selectedImageModels: nextModels, imageModel: nextPrimaryModel })
 
     const maxImages = getImageModelsMaxInputImages(modelInfos)
     if (maxImages === 0) {
@@ -1137,12 +1138,13 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
     if (models.length === 0)
       return
 
-    const modelInfos = models
+    const nextModels = models.slice(0, 1)
+    const modelInfos = nextModels
       .map(model => pricingData?.videoModels?.find(item => item.name === model))
       .filter((model): model is VideoModelInfo => Boolean(model))
     const newConfig = getVideoModelsCommonStaticConfig(modelInfos)
     const newResolutions = getVideoModelsCommonResolutions(modelInfos)
-    if (modelInfos.length !== models.length || newConfig.supportedRatios.size === 0) {
+    if (modelInfos.length !== nextModels.length || newConfig.supportedRatios.size === 0) {
       toast.warning(t('detail.noCommonModelParams'))
       return
     }
@@ -1152,17 +1154,17 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
       return
     }
 
-    const nextModelType = models[0]!
-    const preferredResolution = models.length === 1
+    const nextModelType = nextModels[0]!
+    const preferredResolution = nextModels.length === 1
       ? getVideoModelDefaultResolution(modelInfos[0])
       : (newResolutions[0] ?? getVideoModelDefaultResolution(modelInfos[0]))
     const nextResolution = includesOption(newResolutions, preferredResolution)
       ? preferredResolution
       : (newResolutions[0] ?? preferredResolution)
-    setSelectedVideoModels(models)
+    setSelectedVideoModels(nextModels)
     setModelType(nextModelType)
     setResolution(nextResolution)
-    updateConfig(configKey, { selectedVideoModels: models, modelType: nextModelType, resolution: nextResolution })
+    updateConfig(configKey, { selectedVideoModels: nextModels, modelType: nextModelType, resolution: nextResolution })
     const supported = newConfig.supportedRatios
     // 切换模型时默认选 9:16，不支持则选第一个可用比例
     if (!includesOption([...supported], aspectRatio)) {

@@ -181,6 +181,11 @@ export const aideoPricingConfigSchema = z.object({
 export const aiConfigSchema = z.object({
   models: aiModelsConfigSchema,
   openai: openaiConfigSchema,
+  muskapis: z.object({
+    apiKey: z.string().optional(),
+    imageChatCompletionsUrl: z.string().default('https://api.muskapis.com/v1/chat/completions'),
+    imageGenerationsUrl: z.string().default('https://api.muskapis.com/v1/images/generations'),
+  }).optional(),
   volcengine: z.object({
     ...volcengineConfigSchema.shape,
     callbackUrl: z.string().optional(),

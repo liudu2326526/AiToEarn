@@ -198,24 +198,18 @@ const ToolBarInline = memo(
       return { label: firstLabel, extraCount: Math.max(0, selectedValues.length - 1) }
     }, [imageModelOptions, isVideoMode, selectedImageModels, selectedVideoModels, t, videoModelOptions])
 
-    const modelOptionsCount = isVideoMode ? (videoModels?.length ?? 0) : imageModelOptions.length
+    const modelSelectionLimit = 1
 
     const handleVideoModelToggle = useCallback((modelName: VideoModelType) => {
-      const isSelected = selectedVideoModels.includes(modelName)
-      if (isSelected && selectedVideoModels.length <= 1)
+      if (selectedVideoModels.length === 1 && selectedVideoModels[0] === modelName)
         return
-      onVideoModelsChange(isSelected
-        ? selectedVideoModels.filter(item => item !== modelName)
-        : [...selectedVideoModels, modelName])
+      onVideoModelsChange([modelName])
     }, [onVideoModelsChange, selectedVideoModels])
 
     const handleImageModelToggle = useCallback((modelName: string) => {
-      const isSelected = selectedImageModels.includes(modelName)
-      if (isSelected && selectedImageModels.length <= 1)
+      if (selectedImageModels.length === 1 && selectedImageModels[0] === modelName)
         return
-      onImageModelsChange(isSelected
-        ? selectedImageModels.filter(item => item !== modelName)
-        : [...selectedImageModels, modelName])
+      onImageModelsChange([modelName])
     }, [onImageModelsChange, selectedImageModels])
 
     const handleDurationChange = useCallback(
@@ -409,7 +403,7 @@ const ToolBarInline = memo(
               <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
                 {t('detail.selectedModelsCount', {
                   selected: selectedModelValues.length,
-                  total: modelOptionsCount,
+                  total: modelSelectionLimit,
                 })}
               </span>
             </div>

@@ -29,6 +29,9 @@ const {
   VOLCENGINE_URL_AUTH_PRIMARY_KEY,
   OPENAI_API_KEY,
   OPENAI_BASE_URL,
+  MUSKAPIS_API_KEY,
+  MUSKAPIS_BASE_URL,
+  MUSKAPIS_IMAGE_CHAT_COMPLETIONS_URL,
   ANTHROPIC_BASE_URL,
   ANTHROPIC_API_KEY,
   GROK_API_KEY,
@@ -138,6 +141,11 @@ module.exports = {
     openai: {
       baseUrl: OPENAI_BASE_URL,
       apiKey: OPENAI_API_KEY,
+    },
+    muskapis: {
+      apiKey: MUSKAPIS_API_KEY || OPENAI_API_KEY,
+      imageChatCompletionsUrl: MUSKAPIS_IMAGE_CHAT_COMPLETIONS_URL || MUSKAPIS_BASE_URL || 'https://api.muskapis.com/v1/chat/completions',
+      imageGenerationsUrl: 'https://api.muskapis.com/v1/images/generations',
     },
     grok: {
       baseUrl: 'https://api.x.ai',
@@ -355,7 +363,7 @@ module.exports = {
           {
             name: 'gpt-image-2-fast',
             description: 'GPT Image 2 Fast',
-            runtimeModel: 'gpt-image-2',
+            runtimeModel: 'gpt-image-2-fast',
             tags: [],
             sizes: GPT_IMAGE_2_SIZES,
             qualities: ['auto', 'high', 'medium', 'low'],
@@ -600,7 +608,7 @@ module.exports = {
         {
           model: 'gpt-image-2-fast',
           displayName: 'GPT Image 2 Fast',
-          runtimeModel: 'gpt-image-2',
+          runtimeModel: 'gpt-image-2-fast',
           queuePriority: 1,
           tags: [],
           supportedAspectRatios: GPT_IMAGE_2_ASPECT_RATIOS,
