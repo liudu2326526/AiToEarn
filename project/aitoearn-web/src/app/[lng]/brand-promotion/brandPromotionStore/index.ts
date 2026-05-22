@@ -86,7 +86,7 @@ export const useBrandPromotionStore = create(
         set({ isSubmitting: true })
         try {
           const res = await apiCreateMaterialGroup(data)
-          if (!res)
+          if (res?.code !== 0)
             return false
           await methods.fetchPlans(1)
           // 通知 planTabStore 同步

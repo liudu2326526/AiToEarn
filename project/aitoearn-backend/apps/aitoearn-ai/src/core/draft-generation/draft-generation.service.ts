@@ -738,8 +738,9 @@ export class DraftGenerationService {
   getDraftGenerationPricing(): DraftGenerationPricingVoInput {
     const imageModels = config.ai.draftGeneration.imageModels
 
+    const supportedDraftVideoChannels = new Set([AiLogChannel.Grok, AiLogChannel.Volcengine])
     const videoModels = config.ai.models.video.generation
-      .filter(v => v.channel === AiLogChannel.Grok)
+      .filter(v => supportedDraftVideoChannels.has(v.channel as AiLogChannel))
 
     return { imageModels, videoModels }
   }

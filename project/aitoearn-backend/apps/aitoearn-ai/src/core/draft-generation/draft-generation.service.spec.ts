@@ -26,3 +26,16 @@ describe('draftGenerationService OpenAI image size resolution', () => {
     expect(() => service.resolveOpenAIImageSize('4:1')).toThrow('between 1:3 and 3:1')
   })
 })
+
+describe('draftGenerationService pricing models', () => {
+  const service = Object.create(DraftGenerationService.prototype) as DraftGenerationService
+
+  it('草稿视频生成定价列表包含 Grok 和 Seedance 模型', () => {
+    const pricing = service.getDraftGenerationPricing()
+    const modelNames = pricing.videoModels.map(model => model.name)
+
+    expect(modelNames).toContain('grok-imagine-video')
+    expect(modelNames).toContain('doubao-seedance-2-0-260128')
+    expect(modelNames).toContain('doubao-seedance-2-0-fast-260128')
+  })
+})

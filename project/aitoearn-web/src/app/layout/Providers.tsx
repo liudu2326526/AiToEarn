@@ -18,6 +18,7 @@ import { useSettingsModalStore } from '@/components/SettingsModal/store'
 import NotificationCenter from '@/components/ui/NotificationCenter'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from '@/lib/toast'
+import { useAccountStore } from '@/store'
 import { useUserStore } from '@/store/user'
 import { isPublicPage } from '@/utils/route'
 
@@ -44,6 +45,24 @@ export function Providers({ children, lng, autoLoginToken }: { children: React.R
     useLoginDialogStore.getState().setManualLoginDisabled(manualLoginDisabled)
   }, [manualLoginDisabled])
 
+  useLayoutEffect(() => {
+    if (!_hasHydrated)
+      return
+
+    const hasQueryToken = new URLSearchParams(window.location.search).has('token')
+
+    // 自动登录：本地/内嵌部署需要在子组件请求前覆盖浏览器里可能残留的旧 token
+    const currentToken = useUserStore.getState().token
+    if (!hasQueryToken && autoLoginToken && currentToken !== autoLoginToken) {
+      if (currentToken) {
+        useAccountStore.getState().clear()
+      }
+      useUserStore.getState().setToken(autoLoginToken)
+      useLoginDialogStore.getState().closeLoginDialog()
+      hasPromptedRef.current = false
+    }
+  }, [_hasHydrated, autoLoginToken])
+
   useEffect(() => {
     if (manualLoginDisabledNoticeSeq === 0)
       return
@@ -57,15 +76,6 @@ export function Providers({ children, lng, autoLoginToken }: { children: React.R
   useEffect(() => {
     if (!_hasHydrated)
       return
-
-    const hasQueryToken = new URLSearchParams(window.location.search).has('token')
-
-    // 自动登录：无 token 时使用环境变量注入的 token
-    if (!hasQueryToken && !useUserStore.getState().token && autoLoginToken) {
-      useUserStore.getState().setToken(autoLoginToken)
-      useLoginDialogStore.getState().closeLoginDialog()
-      hasPromptedRef.current = false
-    }
 
     useUserStore.getState().appInit()
   }, [_hasHydrated, autoLoginToken])
