@@ -6,7 +6,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -42,6 +42,8 @@ export function EmailLoginForm({
 }: EmailLoginFormProps = {}) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const params = useParams<{ lng?: string }>()
+  const lng = params.lng || 'en'
   const redirect = redirectUrl ?? searchParams.get('redirect')
   const { setToken, setUserInfo } = useUserStore()
   const { t } = useTransClient('login')
@@ -77,7 +79,7 @@ export function EmailLoginForm({
           onLoginSuccess()
         }
         else {
-          router.push(redirect || '/')
+          router.push(redirect || `/${lng}`)
         }
       }
       else {

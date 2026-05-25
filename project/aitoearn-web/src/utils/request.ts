@@ -52,6 +52,13 @@ function createApiErrorContent(message: string) {
   return `${message} ${contactTip} ${contactLabel} ${CONTACT}`
 }
 
+function isInsufficientBalanceMessage(message?: string) {
+  if (!message)
+    return false
+
+  return message.includes('余额不足') || /insufficient (credits|balance)/i.test(message)
+}
+
 export async function request<T>(params: RequestParamsWithSilent) {
   try {
     const res = await fetchService.request(params)
@@ -81,8 +88,12 @@ export async function request<T>(params: RequestParamsWithSilent) {
 
     if (data.code !== 0) {
       if (!params.silent && typeof window !== 'undefined') {
+        const content = isInsufficientBalanceMessage(data.message)
+          ? directTrans('common', 'insufficientBalanceContactAdmin')
+          : createApiErrorContent(data.message || networkBusy)
+
         notification.warning({
-          content: createApiErrorContent(data.message || networkBusy),
+          content,
           key: 'apiErrorMessage',
           duration: 3,
         })

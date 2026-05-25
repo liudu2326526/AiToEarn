@@ -1,5 +1,8 @@
+import { CreditsType } from '@yikart/common'
 import { User } from '@yikart/mongodb'
 import { getRandomString } from '../../../common/utils'
+
+export const REGISTER_BONUS_CREDITS = 200
 
 export enum UserCreateType {
   mail = 'mail',
@@ -18,6 +21,7 @@ export class NewUser extends User {
   constructor(type: UserCreateType, identifier: string | { douyinMiniAppOpenid?: string, douyinUnionid?: string }, params?: { password: string, salt: string } | User['googleAccount']) {
     super()
     this.name = `user_${getRandomString(8)}`
+    this.applyRegisterBonusCredits()
 
     switch (type) {
       case UserCreateType.douyinMiniApp: {
@@ -38,6 +42,23 @@ export class NewUser extends User {
         }
         if (type === UserCreateType.google)
           this.googleAccount = params as User['googleAccount']
+    }
+  }
+
+  private applyRegisterBonusCredits() {
+    const now = new Date()
+    this.creditsBalance = REGISTER_BONUS_CREDITS
+    this.credits = {
+      balance: REGISTER_BONUS_CREDITS,
+      total: REGISTER_BONUS_CREDITS,
+      unit: 'credits',
+      updatedAt: now,
+      lastOperation: {
+        amount: REGISTER_BONUS_CREDITS,
+        type: CreditsType.RegisterBonus,
+        description: 'Registration bonus credits',
+        operatedAt: now,
+      },
     }
   }
 }

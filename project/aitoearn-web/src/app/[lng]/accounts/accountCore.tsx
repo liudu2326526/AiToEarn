@@ -3,16 +3,14 @@
 import type { IPublishDialogRef } from '@/components/PublishDialog'
 import { NoSSR } from '@kwooshung/react-no-ssr'
 import Image from 'next/image'
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import AccountsTopNav from '@/app/[lng]/accounts/components/AccountsTopNav'
-import CalendarTiming from '@/app/[lng]/accounts/components/CalendarTiming'
 import { AccountStatus } from '@/app/config/accountConfig'
 import { AccountPlatInfoMap, PlatType } from '@/app/config/platConfig'
 import { useTransClient } from '@/app/i18n/client'
 import rightArrow from '@/assets/images/jiantou.png'
 import { useChannelManagerStore } from '@/components/ChannelManager'
-import PublishDialog from '@/components/PublishDialog'
 import { VideoGrabFrame } from '@/components/PublishDialog/PublishDialog.util'
 import { usePublishDialog } from '@/components/PublishDialog/usePublishDialog'
 import { useAccountStore } from '@/store/account'
@@ -20,6 +18,22 @@ import { generateUUID } from '@/utils'
 import { useCalendarTiming } from './components/CalendarTiming/useCalendarTiming'
 import { useNewWork } from './hooks/useNewWork'
 import 'driver.js/dist/driver.css'
+
+const CalendarTiming = lazy(() => import('@/app/[lng]/accounts/components/CalendarTiming'))
+const PublishDialog = lazy(() => import('@/components/PublishDialog'))
+
+function CalendarTimingFallback() {
+  return (
+    <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
+      <div className="h-12 w-full animate-pulse rounded-lg bg-muted" />
+      <div className="grid flex-1 grid-cols-7 gap-2">
+        {Array.from({ length: 7 }).map((_, index) => (
+          <div key={index} className="min-h-[360px] animate-pulse rounded-lg bg-muted" />
+        ))}
+      </div>
+    </div>
+  )
+}
 
 interface AccountPageCoreProps {
   searchParams?: {
@@ -62,6 +76,7 @@ export default function AccountPageCore({ searchParams }: AccountPageCoreProps) 
   const [showWechatBrowserTip, setShowWechatBrowserTip] = useState(false)
   // 发布弹窗状态
   const [publishDialogOpen, setPublishDialogOpen] = useState(false)
+  const [publishDialogHasMounted, setPublishDialogHasMounted] = useState(false)
   const [defaultAccountIds, setDefaultAccountIds] = useState<string[]>()
   const [aiGeneratedData, setAiGeneratedData] = useState<any>(null)
   const publishDialogRef = useRef<IPublishDialogRef>(null)
@@ -77,6 +92,12 @@ export default function AccountPageCore({ searchParams }: AccountPageCoreProps) 
   useEffect(() => {
     accountInit()
   }, [])
+
+  useEffect(() => {
+    if (publishDialogOpen) {
+      setPublishDialogHasMounted(true)
+    }
+  }, [publishDialogOpen])
 
   // 处理URL参数
   useEffect(() => {
@@ -524,7 +545,9 @@ export default function AccountPageCore({ searchParams }: AccountPageCoreProps) 
         <AccountsTopNav onNewWork={() => openNewWork()} onAddAccount={() => openConnectList()} />
 
         {/* 主内容区域: CalendarTiming (包含 Row 2 工具栏和日历/列表视图) */}
-        <CalendarTiming />
+        <Suspense fallback={<CalendarTimingFallback />}>
+          <CalendarTiming />
+        </Suspense>
 
         {/* 微信浏览器提示（遮罩 + 箭头指向右上角） */}
         {showWechatBrowserTip && (
@@ -583,24 +606,28 @@ export default function AccountPageCore({ searchParams }: AccountPageCoreProps) 
         )}
 
         {/* 发布作品弹窗 */}
-        <PublishDialog
-          ref={publishDialogRef}
-          open={publishDialogOpen}
-          onClose={() => {
-            setPublishDialogOpen(false)
-            setAiGeneratedData(null)
-            setDefaultAccountIds(undefined)
-          }}
-          accounts={allAccounts}
-          defaultAccountIds={defaultAccountIds}
-          accountListInitialLoading={accountListInitialLoading}
-          onPubSuccess={() => {
-            setPublishDialogOpen(false)
-            setAiGeneratedData(null)
-            setDefaultAccountIds(undefined)
-            useCalendarTiming.getState().getPubRecord()
-          }}
-        />
+        {(publishDialogOpen || publishDialogHasMounted) && (
+          <Suspense fallback={null}>
+            <PublishDialog
+              ref={publishDialogRef}
+              open={publishDialogOpen}
+              onClose={() => {
+                setPublishDialogOpen(false)
+                setAiGeneratedData(null)
+                setDefaultAccountIds(undefined)
+              }}
+              accounts={allAccounts}
+              defaultAccountIds={defaultAccountIds}
+              accountListInitialLoading={accountListInitialLoading}
+              onPubSuccess={() => {
+                setPublishDialogOpen(false)
+                setAiGeneratedData(null)
+                setDefaultAccountIds(undefined)
+                useCalendarTiming.getState().getPubRecord()
+              }}
+            />
+          </Suspense>
+        )}
       </div>
     </NoSSR>
   )

@@ -430,6 +430,13 @@ export class VolcengineVideoService {
       model,
     })
 
+    if (userType === UserType.User) {
+      await this.creditsHelper.ensureEnoughCredits({
+        userId,
+        amount: pricing,
+      })
+    }
+
     const startedAt = new Date()
     const result = await this.aiAvailability.executeAsync(
       { provider: 'volcengine', operation: 'videoGeneration', model },

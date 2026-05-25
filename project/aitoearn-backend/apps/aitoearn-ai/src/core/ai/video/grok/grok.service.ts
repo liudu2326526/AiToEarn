@@ -181,6 +181,13 @@ export class GrokVideoService {
       pricing = this.calculatePrice({ model, duration })
     }
 
+    if (userType === UserType.User) {
+      await this.creditsHelper.ensureEnoughCredits({
+        userId,
+        amount: pricing,
+      })
+    }
+
     const startedAt = new Date()
 
     const result = await this.aiAvailability.executeAsync(

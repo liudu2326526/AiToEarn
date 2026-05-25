@@ -18,7 +18,7 @@ describe('dashscopeVideoService', () => {
   let mockAiLogRepo: vi.Mocked<Pick<AiLogRepository, 'create' | 'getByTaskId' | 'updateById'>>
   let mockAssetsService: vi.Mocked<Pick<AssetsService, 'uploadFromUrl'>>
   let mockStorageProvider: vi.Mocked<Pick<StorageProvider, 'parsePathFromUrl' | 'toPresignedUrl'>>
-  let mockCreditsHelper: vi.Mocked<Pick<CreditsHelperService, 'getBalance' | 'deductCredits'>>
+  let mockCreditsHelper: vi.Mocked<Pick<CreditsHelperService, 'getBalance' | 'ensureEnoughCredits' | 'deductCredits'>>
   let mockQueueService: vi.Mocked<Pick<QueueService, 'addAiTaskRefundJob'>>
   let mockVideoMetadataService: vi.Mocked<Pick<VideoMetadataService, 'probeVideoMetadata'>>
   let mockAiAvailability: vi.Mocked<Pick<AiAvailabilityService, 'executeAsync' | 'recordAsyncComplete'>>
@@ -75,6 +75,7 @@ describe('dashscopeVideoService', () => {
     }
     mockCreditsHelper = {
       getBalance: vi.fn().mockResolvedValue(1000),
+      ensureEnoughCredits: vi.fn().mockResolvedValue(undefined),
       deductCredits: vi.fn().mockResolvedValue(undefined),
     }
     mockQueueService = {

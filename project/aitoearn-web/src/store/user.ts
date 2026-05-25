@@ -23,6 +23,13 @@ export interface UserInfo {
   avatar?: string
   score?: number
   income?: number // 余额字段
+  creditsBalance?: number
+  credits?: {
+    balance?: number
+    total?: number
+    unit?: string
+    updatedAt?: string
+  }
   popularizeCode?: string
   placeId?: string
   // 用户身份

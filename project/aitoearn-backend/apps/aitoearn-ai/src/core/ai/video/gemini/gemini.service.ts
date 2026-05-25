@@ -153,6 +153,13 @@ export class GeminiVideoService {
       duration,
     })
 
+    if (userType === UserType.User) {
+      await this.creditsHelper.ensureEnoughCredits({
+        userId,
+        amount: pricing,
+      })
+    }
+
     const startedAt = new Date()
 
     // 预选 Key Pair 获取 bucket

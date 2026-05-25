@@ -6,17 +6,34 @@
 'use client'
 
 import { Loader2, Plus, Sparkles } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useBrandPromotionStore } from '@/app/[lng]/brand-promotion/brandPromotionStore'
-import CreatePlanModal from '@/app/[lng]/brand-promotion/components/CreatePlanModal'
 import PlanTabBar from '@/app/[lng]/brand-promotion/components/PlanTabBar'
 import { usePlanDetailStore } from '@/app/[lng]/brand-promotion/planDetailStore'
 import { usePlanTabStore } from '@/app/[lng]/brand-promotion/planTabStore'
 import { useTransClient } from '@/app/i18n/client'
 import { Button } from '@/components/ui/button'
-import DraftContentModule from './components/DraftContentModule'
+
+const CreatePlanModal = dynamic(
+  () => import('@/app/[lng]/brand-promotion/components/CreatePlanModal'),
+  { ssr: false },
+)
+const DraftContentModule = dynamic(() => import('./components/DraftContentModule'), {
+  ssr: false,
+  loading: () => (
+    <div className="space-y-6 p-4 md:p-6">
+      <div className="h-28 animate-pulse rounded-lg bg-muted" />
+      <div className="grid gap-4 md:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <div key={index} className="h-56 animate-pulse rounded-lg bg-muted" />
+        ))}
+      </div>
+    </div>
+  ),
+})
 
 export default function DraftBoxCore() {
   const { t } = useTransClient('brandPromotion')

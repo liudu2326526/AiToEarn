@@ -20,6 +20,7 @@
   "subscribe": "升级会员",
   "balance": "积分",
   "recharge": "充值",
+  "insufficientBalanceContactAdmin": "余额不足，请联系管理员充值",
   "adBalance": "广告主余额",
   "creatorBalance": "创作者余额",
   "plugin": "浏览器插件",

@@ -26,6 +26,7 @@ import type { XhsBaseResponse, XhsCommentResponse } from './types'
 import { PlatType } from '@/app/config/platConfig'
 import { getCommentList, getSubCommentList } from './comment'
 import { getHomeFeedList, homeFeedCursor } from './homeFeed'
+import { getWorkDetailViaAutoclawBridge } from './workDetail'
 
 /**
  * 小红书平台交互类
@@ -193,11 +194,8 @@ class XhsPlatformInteraction implements IPlatformInteraction {
    * 获取作品详情
    * @param params 详情请求参数
    */
-  async getWorkDetail(_params: GetWorkDetailParams): Promise<GetWorkDetailResult> {
-    return {
-      success: false,
-      message: '小红书作品详情抓取能力已移除',
-    }
+  async getWorkDetail(params: GetWorkDetailParams): Promise<GetWorkDetailResult> {
+    return getWorkDetailViaAutoclawBridge(params)
   }
 
   /**

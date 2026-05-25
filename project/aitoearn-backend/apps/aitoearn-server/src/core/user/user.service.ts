@@ -99,6 +99,21 @@ export class UserService {
     return userInfo
   }
 
+  async createUserByMailWithPassword(
+    mail: string,
+    password: string,
+    salt: string,
+  ): Promise<User> {
+    const newData = new NewUser(UserCreateType.mail, mail, { password, salt })
+    newData.locale = getLocale()
+
+    const userInfo = await this.userRepository.create(
+      newData,
+    )
+    this.afterCreate(userInfo)
+    return userInfo
+  }
+
   /**
    * Update user password
    * @param id

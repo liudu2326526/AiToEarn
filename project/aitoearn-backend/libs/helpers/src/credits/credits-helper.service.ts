@@ -1,5 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import { AppException, ResponseCode } from '@yikart/common'
 import { UserRepository } from '@yikart/mongodb'
+
+export const INSUFFICIENT_CREDITS_MESSAGE = '余额不足，请联系管理员充值'
 
 export interface CreditsHelperOperation {
   userId: string
@@ -19,6 +22,14 @@ export class CreditsHelperService {
 
   async getBalance(userId: string): Promise<number> {
     return await this.userRepository.getCreditsBalanceById(userId)
+  }
+
+  async ensureEnoughCredits(data: Pick<CreditsHelperOperation, 'userId' | 'amount'>): Promise<void> {
+    const amount = this.normalizeAmount(data.amount)
+    const balance = await this.userRepository.getCreditsBalanceById(data.userId)
+    if (balance < amount) {
+      throw new AppException(ResponseCode.ValidationFailed, INSUFFICIENT_CREDITS_MESSAGE)
+    }
   }
 
   async addCredits(data: CreditsHelperOperation): Promise<void> {
@@ -41,7 +52,7 @@ export class CreditsHelperService {
       this.createOperationSnapshot(data, amount),
     )
     if (balance === null) {
-      throw new BadRequestException('Insufficient credits')
+      throw new AppException(ResponseCode.ValidationFailed, INSUFFICIENT_CREDITS_MESSAGE)
     }
   }
 

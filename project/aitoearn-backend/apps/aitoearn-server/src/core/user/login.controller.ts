@@ -15,6 +15,10 @@ import {
   MailLoginSchema,
   MailPasswordLoginDto,
   MailPasswordLoginSchema,
+  MailPasswordRegisterDto,
+  MailPasswordRegisterSchema,
+  MailRegisterCodeDto,
+  MailRegisterCodeSchema,
   MailRepasswordDto,
   MailRepasswordVerifyDto,
   MailRepasswordVerifySchema,
@@ -102,6 +106,88 @@ export class LoginController {
 
     return {
       type: isNewUser ? 'regist' : 'login',
+      token,
+      exp: tokenInfo.exp,
+      userInfo,
+    }
+  }
+
+  @ApiDoc({
+    summary: '发送邮箱注册验证码',
+    description: '向邮箱发送验证码，用于邮箱密码注册。',
+    body: MailRegisterCodeSchema,
+  })
+  @Public()
+  @RateLimit({ ttl: 60, limit: 1, keyGenerator: req => `mailRegister:${req.body.mail}` })
+  @Post('register/mail')
+  async sendRegisterMailCode(@Body() body: MailRegisterCodeDto) {
+    const { mail } = body
+
+    const existingUser = await this.userService.getUserInfoByMail(mail)
+    if (existingUser && !existingUser.isDelete)
+      throw new AppException(ResponseCode.UserAlreadyExists)
+
+    const code = getRandomString(6, true)
+    const shouldSendMail = config.environment === 'production'
+      || Boolean(config.mail?.transport?.auth?.user && config.mail?.transport?.auth?.pass)
+
+    if (shouldSendMail) {
+      const mailRes = await this.loginService.sendLoginMail(mail, code)
+      if (!mailRes)
+        throw new AppException(ResponseCode.MailSendFail)
+    }
+
+    const redisRes = await this.redisService.setJson(
+      `userMailRegister:${mail}`,
+      { code },
+      60 * 5,
+    )
+    this.logger.log(`setJson userMailRegister:${mail} result: ${redisRes}`)
+
+    return shouldSendMail ? '' : code
+  }
+
+  @ApiDoc({
+    summary: '邮箱密码注册',
+    description: '使用邮箱验证码和密码注册账号。',
+    body: MailPasswordRegisterSchema,
+  })
+  @Public()
+  @RateLimit({ ttl: 60, limit: 5, keyGenerator: req => `mailRegisterVerify:${req.body.mail}` })
+  @Post('register')
+  async registerByMailPassword(@Body() body: MailPasswordRegisterDto) {
+    const { mail, code, password } = body
+
+    const isSuperCode = config.superCode && code === config.superCode
+    if (!isSuperCode) {
+      const cacheData = await this.redisService.getJson<{ code: string }>(
+        `userMailRegister:${mail}`,
+      )
+      if (!cacheData || cacheData.code !== code)
+        throw new AppException(ResponseCode.UserLoginCodeError)
+    }
+
+    const existingUser = await this.userService.getUserInfoByMail(mail, true)
+    if (existingUser && !existingUser.isDelete)
+      throw new AppException(ResponseCode.UserAlreadyExists)
+
+    const { password: encryptedPassword, salt } = encryptPassword(password)
+    const userInfo = await this.userService.createUserByMailWithPassword(
+      mail,
+      encryptedPassword,
+      salt,
+    )
+
+    if (!isSuperCode)
+      await this.redisService.del(`userMailRegister:${mail}`)
+
+    const token = this.authService.generateToken(userInfo)
+    const tokenInfo = this.authService.decodeToken(token)
+
+    this.userService.afterLogin(userInfo)
+
+    return {
+      type: 'regist',
       token,
       exp: tokenInfo.exp,
       userInfo,

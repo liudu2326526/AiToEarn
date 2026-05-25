@@ -20,6 +20,7 @@
   "subscribe": "Upgrade",
   "balance": "Credits",
   "recharge": "Recharge",
+  "insufficientBalanceContactAdmin": "Insufficient balance. Please contact an administrator to recharge.",
   "adBalance": "Advertiser Balance",
   "creatorBalance": "Creator Balance",
   "plugin": "Extension",

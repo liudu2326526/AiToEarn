@@ -7,7 +7,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { memo, useCallback } from 'react'
 import { useShallow } from 'zustand/shallow'
 
@@ -36,6 +36,8 @@ export default function LoginDialog({ manualLoginDisabled = false }: { manualLog
 
 const LoginDialogContent = memo(() => {
   const router = useRouter()
+  const params = useParams<{ lng?: string }>()
+  const lng = params.lng || 'en'
   const { t } = useTransClient('login')
   const isMobile = useIsMobile()
   const { redirectUrl, inviteCode, fromGuard, closeLoginDialog } = useLoginDialogStore(
@@ -97,6 +99,18 @@ const LoginDialogContent = memo(() => {
             inviteCode={inviteCode}
           />
         </div>
+
+        <p className="text-center text-sm text-muted-foreground">
+          {t('registerLinkText')}
+          {' '}
+          <Link
+            href={`/${lng}/auth/register`}
+            className="font-medium text-primary hover:underline"
+            onClick={closeLoginDialog}
+          >
+            {t('registerLinkAction')}
+          </Link>
+        </p>
 
         {/* 底部条款 */}
         <p className="pb-2 text-center text-xs text-muted-foreground/70">

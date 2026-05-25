@@ -32,6 +32,10 @@ const {
 const {
   MAIL_USER,
   MAIL_PASS,
+  MAIL_HOST,
+  MAIL_PORT,
+  MAIL_SECURE,
+  MAIL_FROM,
 } = process.env
 
 const {
@@ -278,16 +282,16 @@ module.exports = {
   assets: JSON.parse(ASSETS_CONFIG),
   mail: {
     transport: {
-      host: 'email-smtp.ap-southeast-1.amazonaws.com',
-      port: 587,
-      secure: false,
+      host: MAIL_HOST || 'email-smtp.ap-southeast-1.amazonaws.com',
+      port: Number(MAIL_PORT || 587),
+      secure: MAIL_SECURE === 'true',
       auth: {
         user: MAIL_USER,
         pass: MAIL_PASS,
       },
     },
     defaults: {
-      from: 'noreply@tx.aitoearn.ai',
+      from: MAIL_FROM || 'noreply@tx.aitoearn.ai',
     },
   },
   aliSms: {

@@ -43,13 +43,3 @@ export async function getPointsRecordsApi(params: { page: number, pageSize: numb
   const res = await http.get<any>(`user/points/records`, params)
   return res
 }
-
-// 积分充值相关API
-export interface RechargePointsParams {
-  amount: number // 充值数量（1000积分为单位）
-  totalPrice: number // 总价格
-}
-
-export function rechargePointsApi(data: RechargePointsParams) {
-  return http.post<any>('user/points/recharge', data)
-}

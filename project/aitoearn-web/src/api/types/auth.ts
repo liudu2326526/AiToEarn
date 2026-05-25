@@ -22,6 +22,18 @@ export interface EmailPasswordLoginParams {
   password: string
 }
 
+/** 发送邮箱注册验证码参数 */
+export interface SendEmailRegisterCodeParams {
+  mail: string
+}
+
+/** 邮箱密码注册参数 */
+export interface EmailPasswordRegisterParams {
+  mail: string
+  code: string
+  password: string
+}
+
 /** 发送手机验证码参数 */
 export interface SendPhoneCodeParams {
   phone: string

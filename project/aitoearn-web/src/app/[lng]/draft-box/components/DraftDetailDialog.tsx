@@ -10,7 +10,7 @@ import type { PromotionMaterial } from '@/app/[lng]/brand-promotion/brandPromoti
 import type { PlatType } from '@/app/config/platConfig'
 import { ArrowRightLeft, Calendar, Edit, Image as ImageIcon, Loader2, Send, Trash2, Video } from 'lucide-react'
 import NextImage from 'next/image'
-import { memo, useCallback, useState } from 'react'
+import { memo, useCallback, useEffect, useState } from 'react'
 import { Navigation, Pagination } from 'swiper/modules'
 import { Swiper, SwiperSlide } from 'swiper/react'
 import { useShallow } from 'zustand/react/shallow'
@@ -38,6 +38,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { formatDate } from '@/utils/format'
+import { getOssUrl } from '@/utils/oss'
 import { useTransferDraftDialogStore } from '../transferDraftDialogStore'
 import styles from './DraftDetailDialog.module.scss'
 import { GenerationParamsCard } from './GenerationParamsCard'
@@ -49,6 +50,12 @@ import 'swiper/css/pagination'
 // 带 loading 状态的图片组件
 function MediaImage({ src, alt }: { src: string, alt: string }) {
   const [loaded, setLoaded] = useState(false)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    setLoaded(false)
+    setFailed(false)
+  }, [src])
 
   return (
     <div className="relative flex items-center justify-center w-full h-full">
@@ -58,18 +65,31 @@ function MediaImage({ src, alt }: { src: string, alt: string }) {
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted-foreground/30 border-t-primary" />
         </div>
       )}
-      <NextImage
-        src={src}
-        alt={alt}
-        width={800}
-        height={600}
-        className={cn(
-          'max-w-full max-h-full object-contain transition-opacity duration-300',
-          loaded ? 'opacity-100' : 'opacity-0',
-        )}
-        onLoad={() => setLoaded(true)}
-        unoptimized
-      />
+      {failed
+        ? (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-2 rounded-lg bg-muted text-muted-foreground">
+              <ImageIcon className="h-10 w-10" />
+              <span className="text-sm">图片加载失败</span>
+            </div>
+          )
+        : (
+            <NextImage
+              src={src}
+              alt={alt}
+              width={800}
+              height={600}
+              className={cn(
+                'max-w-full max-h-full object-contain transition-opacity duration-300',
+                loaded ? 'opacity-100' : 'opacity-0',
+              )}
+              onLoad={() => setLoaded(true)}
+              onError={() => {
+                setLoaded(true)
+                setFailed(true)
+              }}
+              unoptimized
+            />
+          )}
     </div>
   )
 }
@@ -79,16 +99,17 @@ const MediaPreview = memo(({ material }: { material: PromotionMaterial }) => {
   const mediaList = material.mediaList || []
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isHovered, setIsHovered] = useState(false)
+  const coverUrl = material.coverUrl ? getOssUrl(material.coverUrl) : ''
 
   // 检查是否全是图片（非视频）
   const isAllImages = mediaList.length > 0 && !mediaList.some(m => m.type === 'video')
 
   // 无媒体但有封面
-  if (mediaList.length === 0 && material.coverUrl) {
+  if (mediaList.length === 0 && coverUrl) {
     return (
       <div className="relative w-full h-full rounded-lg overflow-hidden bg-muted">
         <LazyImage
-          src={material.coverUrl}
+          src={coverUrl}
           alt={material.title || '草稿封面'}
           fill
           className="object-cover"
@@ -134,18 +155,18 @@ const MediaPreview = memo(({ material }: { material: PromotionMaterial }) => {
             {media.type === 'video'
               ? (
                   <video
-                    src={media.url}
+                    src={getOssUrl(media.url)}
                     controls
                     autoPlay
                     loop
                     playsInline
                     className="w-full h-full object-contain bg-white"
-                    poster={material.coverUrl}
+                    poster={coverUrl}
                   />
                 )
               : (
                   <MediaImage
-                    src={media.url}
+                    src={getOssUrl(media.url)}
                     alt={material.title || `媒体 ${index + 1}`}
                   />
                 )}
@@ -257,14 +278,14 @@ const DraftDetailContent = memo(({ allowTransfer = true }: DraftDetailContentPro
       <DialogTitle className="sr-only">{t('draft.detailTitle')}</DialogTitle>
 
       {/* PC端左右布局，移动端垂直布局 */}
-      <div className="flex flex-col md:flex-row md:gap-6 md:h-[80vh]">
+      <div className="grid min-h-0 gap-4 md:h-[80vh] md:grid-cols-[minmax(0,3fr)_minmax(320px,2fr)]">
         {/* 左侧：媒体区域 */}
-        <div className="md:w-3/5 flex-shrink-0 h-[40vh] md:h-full">
+        <div className="h-[40vh] min-w-0 overflow-hidden md:h-full">
           <MediaPreview material={selectedDraft} />
         </div>
 
         {/* 右侧：信息区域 - 移动端限制最大高度使 ScrollArea 生效 */}
-        <div className="md:w-2/5 mt-4 md:mt-0 flex flex-col max-h-[35vh] md:max-h-none md:h-full">
+        <div className="mt-4 flex max-h-[35vh] min-w-0 flex-col md:mt-0 md:h-full md:max-h-none">
           {/* 可滚动内容 */}
           <ScrollArea className="flex-1 min-h-0">
             <div className="space-y-4 pr-2">
@@ -467,7 +488,7 @@ export const DraftDetailDialog = memo(({ allowTransfer = true }: DraftDetailDial
 
   return (
     <Dialog open onOpenChange={closeDraftDetailDialog}>
-      <DialogContent data-testid="draftbox-detail-dialog" className="sm:max-w-md md:max-w-6xl">
+      <DialogContent data-testid="draftbox-detail-dialog" className="max-h-[calc(100dvh-24px)] overflow-hidden sm:max-w-md md:max-w-[min(1120px,calc(100vw-48px))]">
         <DraftDetailContent allowTransfer={allowTransfer} />
       </DialogContent>
     </Dialog>

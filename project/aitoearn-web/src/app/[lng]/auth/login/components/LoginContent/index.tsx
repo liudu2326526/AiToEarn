@@ -8,7 +8,7 @@
 import { motion } from 'framer-motion'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 
 import { useTransClient } from '@/app/i18n/client'
@@ -25,6 +25,8 @@ const fadeInUp = {
 
 export default function LoginContent() {
   const router = useRouter()
+  const params = useParams<{ lng?: string }>()
+  const lng = params.lng || 'en'
   const { token, _hasHydrated } = useUserStore()
   const { t } = useTransClient('login')
 
@@ -89,6 +91,14 @@ export default function LoginContent() {
           </div>
 
           <EmailLoginForm />
+
+          <p className="mt-6 text-center text-sm text-muted-foreground">
+            {t('registerLinkText')}
+            {' '}
+            <Link href={`/${lng}/auth/register`} className="font-medium text-primary hover:underline">
+              {t('registerLinkAction')}
+            </Link>
+          </p>
         </motion.div>
 
         {/* 底部条款 */}

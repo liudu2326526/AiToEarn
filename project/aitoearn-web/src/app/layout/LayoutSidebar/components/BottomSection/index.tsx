@@ -7,6 +7,7 @@
 
 import type { BottomSectionProps } from '../../types'
 import { cn } from '@/lib/utils'
+import { BalanceEntry } from './BalanceEntry'
 import { PluginEntry } from './PluginEntry'
 
 export function BottomSection({ collapsed }: BottomSectionProps) {
@@ -17,6 +18,9 @@ export function BottomSection({ collapsed }: BottomSectionProps) {
         collapsed && 'items-center',
       )}
     >
+      {/* 当前积分余额 */}
+      <BalanceEntry collapsed={collapsed} />
+
       {/* 浏览器插件入口 */}
       <PluginEntry collapsed={collapsed} />
     </div>
@@ -24,4 +28,5 @@ export function BottomSection({ collapsed }: BottomSectionProps) {
 }
 
 // 导出子组件
+export { BalanceEntry } from './BalanceEntry'
 export { PluginEntry } from './PluginEntry'

@@ -16,6 +16,8 @@ import type {
   XhsSubCommentItem,
   XhsSubCommentListResponse,
 } from './types'
+import { getXhsCaptureSetupMessage } from './autoclawBridge'
+import { getCommentsViaAutoclawBridge } from './workDetail'
 
 // ============================================================================
 // 数据转换函数
@@ -101,13 +103,7 @@ function transformComment(item: XhsCommentItem): CommentItem {
 export async function getCommentList(params: CommentListParams): Promise<CommentListResult> {
   // 检查插件
   if (!window.AIToEarnPlugin) {
-    return {
-      success: false,
-      message: '插件未安装或未就绪',
-      comments: [],
-      cursor: '',
-      hasMore: false,
-    }
+    return getCommentsViaAutoclawBridge(params)
   }
 
   const { workId, cursor = '', count = 10, xsecToken = '' } = params
@@ -173,7 +169,7 @@ export async function getSubCommentList(params: SubCommentListParams): Promise<C
   if (!window.AIToEarnPlugin) {
     return {
       success: false,
-      message: '插件未安装或未就绪',
+      message: getXhsCaptureSetupMessage('子评论接口需要 AiToEarn 插件的小红书请求能力'),
       comments: [],
       cursor: '',
       hasMore: false,

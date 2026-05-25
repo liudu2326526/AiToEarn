@@ -2,6 +2,25 @@
 export function getOssUrl(path?: string) {
   if (!path)
     return ''
+
+  const baseUrl = process.env.NEXT_PUBLIC_OSS_URL
+
+  if (baseUrl) {
+    const publicBaseUrl = baseUrl.replace(/\/$/, '')
+    try {
+      const url = new URL(path)
+      const isLocalObjectStorage = ['127.0.0.1', 'localhost'].includes(url.hostname) && url.port === '9000'
+      if (isLocalObjectStorage) {
+        const [, bucket, ...objectPathParts] = url.pathname.split('/')
+        if (bucket && objectPathParts.length > 0)
+          return `${publicBaseUrl}/${objectPathParts.join('/')}`
+      }
+    }
+    catch {
+      // Not an absolute URL; relative object paths are handled below.
+    }
+  }
+
   if (
     path.startsWith('http')
     || path.startsWith('https')
@@ -12,7 +31,7 @@ export function getOssUrl(path?: string) {
   ) {
     return path
   }
-  const baseUrl = process.env.NEXT_PUBLIC_OSS_URL
+
   if (!baseUrl)
     return path
 

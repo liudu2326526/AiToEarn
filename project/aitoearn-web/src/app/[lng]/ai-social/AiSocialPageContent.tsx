@@ -6,17 +6,33 @@
 
 import type { IHomeChatRef } from './components/HomeChat'
 import { ArrowUp, Upload } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { useTransClient } from '../../i18n/client'
-import AgentFeatures from './components/AgentFeatures'
-import EcosystemDiagram from './components/EcosystemDiagram'
-import { HomeChat } from './components/HomeChat'
-import PromptGallery from './components/PromptGallery'
-import TaskPreview from './components/TaskPreview'
+
+const HomeChat = lazy(() =>
+  import('./components/HomeChat').then(module => ({ default: module.HomeChat })),
+)
+const TaskPreview = dynamic(() => import('./components/TaskPreview'), {
+  loading: () => <div className="px-4 py-8" />,
+})
+const PromptGallery = dynamic(() => import('./components/PromptGallery'))
+const AgentFeatures = dynamic(() => import('./components/AgentFeatures'))
+const EcosystemDiagram = dynamic(() => import('./components/EcosystemDiagram'))
+
+function HomeChatFallback() {
+  return (
+    <div className="w-full max-w-3xl mx-auto px-4">
+      <div className="mx-auto mb-6 h-10 w-2/3 animate-pulse rounded-lg bg-muted" />
+      <div className="h-40 animate-pulse rounded-2xl border bg-card" />
+      <div className="-mt-3 h-14 animate-pulse rounded-b-xl bg-muted" />
+    </div>
+  )
+}
 
 export function AiSocialPageContent() {
   const { t } = useTransClient('home')
@@ -169,13 +185,15 @@ export function AiSocialPageContent() {
 
       {/* 首屏 Chat 区域 */}
       <section className="min-h-[60vh] flex items-center justify-center px-4 pt-16 pb-8 md:pt-24 md:pb-12">
-        <HomeChat
-          ref={homeChatRef}
-          externalPrompt={appliedPrompt}
-          externalMaterials={appliedMaterials}
-          onClearExternalPrompt={handleClearExternalPrompt}
-          agentTaskId={agentTaskId}
-        />
+        <Suspense fallback={<HomeChatFallback />}>
+          <HomeChat
+            ref={homeChatRef}
+            externalPrompt={appliedPrompt}
+            externalMaterials={appliedMaterials}
+            onClearExternalPrompt={handleClearExternalPrompt}
+            agentTaskId={agentTaskId}
+          />
+        </Suspense>
       </section>
 
       {/* 任务预览区域 - 无数据时自动隐藏 */}

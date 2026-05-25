@@ -5,6 +5,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common'
 import { QueueService } from '@yikart/aitoearn-queue'
 import { AssetsService, VideoMetadataService } from '@yikart/assets'
 import { AccountType, AppException, CreditsConsumptionSource, FileUtil, getErrorMessage, poll, ResponseCode, retry, UserType } from '@yikart/common'
+import { CreditsHelperService } from '@yikart/helpers'
 import {
   AiLogChannel,
   AiLogRepository,
@@ -149,6 +150,7 @@ export class DraftGenerationService {
     private readonly mediaRepository: MediaRepository,
     private readonly draftGenerationPlannerService: DraftGenerationPlannerService,
     private readonly draftGenerationMemoryService: DraftGenerationMemoryService,
+    private readonly creditsHelper: CreditsHelperService,
   ) { }
 
   async getTask(taskId: string, userId: string, userType: UserType) {
@@ -182,8 +184,15 @@ export class DraftGenerationService {
     return { generatingCount }
   }
 
-  private async assertUserCreditsSufficient(_userId: string, _userType: UserType, _requiredPoints: number): Promise<void> {
-    return undefined
+  private async assertUserCreditsSufficient(userId: string, userType: UserType, requiredPoints: number): Promise<void> {
+    if (userType !== UserType.User || requiredPoints <= 0) {
+      return
+    }
+
+    await this.creditsHelper.ensureEnoughCredits({
+      userId,
+      amount: requiredPoints,
+    })
   }
 
   private async addDraftGenerationJob(data: DraftGenerationData): Promise<void> {

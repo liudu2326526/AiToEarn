@@ -18,6 +18,7 @@ describe('grokVideoService.createVideo', () => {
   }
   let mockCreditsHelper: {
     getBalance: ReturnType<typeof vi.fn>
+    ensureEnoughCredits: ReturnType<typeof vi.fn>
     deductCredits: ReturnType<typeof vi.fn>
   }
   let mockVideoMetadataService: {
@@ -40,6 +41,7 @@ describe('grokVideoService.createVideo', () => {
     }
     mockCreditsHelper = {
       getBalance: vi.fn().mockResolvedValue(100),
+      ensureEnoughCredits: vi.fn().mockResolvedValue(undefined),
       deductCredits: vi.fn().mockResolvedValue(undefined),
     }
     mockVideoMetadataService = {

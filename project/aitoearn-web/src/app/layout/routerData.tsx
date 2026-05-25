@@ -4,10 +4,13 @@
  */
 import {
   Bot,
+  ChartNoAxesCombined,
   History,
   Home,
   Sparkles,
+  Store,
   Upload,
+  WalletCards,
 } from 'lucide-react'
 
 export interface IRouterDataItem {
@@ -43,6 +46,12 @@ export const routerData: IRouterDataItem[] = [
     icon: <History size={20} />,
   },
   {
+    name: 'Task Square',
+    translationKey: 'taskSquare',
+    path: '/task-square',
+    icon: <Store size={20} />,
+  },
+  {
     name: 'Publish',
     translationKey: 'accounts',
     path: '/accounts',
@@ -54,6 +63,18 @@ export const routerData: IRouterDataItem[] = [
     translationKey: 'header.agentAssets',
     path: '/agent-assets',
     icon: <Bot size={20} />,
+  },
+  {
+    name: 'Gold',
+    translationKey: 'gold',
+    path: '/gold',
+    icon: <WalletCards size={20} />,
+  },
+  {
+    name: 'XHS Data',
+    translationKey: 'xhsData',
+    path: '/xhs-data',
+    icon: <ChartNoAxesCombined size={20} />,
   },
 ]
 

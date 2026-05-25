@@ -21,6 +21,7 @@ import { ContentModule } from './core/content/content.module'
 import { InternalModule } from './core/internal/internal.module'
 import { NotificationModule } from './core/notification/notification.module'
 import { PublishModule } from './core/publish-record/publish-record.module'
+import { PromotionMarketplaceModule } from './core/promotion-marketplace/promotion-marketplace.module'
 import { RelayModule } from './core/relay/relay.module'
 import { ShortLinkModule } from './core/short-link/short-link.module'
 import { ToolsModule } from './core/tools/tools.module'
@@ -84,6 +85,7 @@ import { UserModule } from './core/user/user.module'
     ApiKeyModule,
     RelayModule,
     UnifiedMcpModule,
+    PromotionMarketplaceModule,
   ],
   controllers: [],
   providers: [],

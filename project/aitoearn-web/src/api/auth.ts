@@ -6,8 +6,10 @@ import type {
   CodeLoginResponse,
   EmailCodeLoginParams,
   EmailPasswordLoginParams,
+  EmailPasswordRegisterParams,
   PhoneCodeLoginParams,
   SendEmailCodeParams,
+  SendEmailRegisterCodeParams,
   SendPhoneCodeParams,
 } from '@/api/types/auth'
 import http from '@/utils/request'
@@ -25,6 +27,16 @@ export function emailCodeLoginApi(data: EmailCodeLoginParams) {
 /** 邮箱密码登录 */
 export function emailPasswordLoginApi(data: EmailPasswordLoginParams) {
   return http.post<CodeLoginResponse>('login/password', data)
+}
+
+/** 发送邮箱注册验证码 */
+export function sendEmailRegisterCodeApi(data: SendEmailRegisterCodeParams) {
+  return http.post<string | null>('login/register/mail', data)
+}
+
+/** 邮箱密码注册 */
+export function emailPasswordRegisterApi(data: EmailPasswordRegisterParams) {
+  return http.post<CodeLoginResponse>('login/register', data)
 }
 
 /** 发送手机验证码 */

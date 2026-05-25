@@ -28,6 +28,20 @@ export const MailPasswordLoginSchema = z.object({
 
 export class MailPasswordLoginDto extends createZodDto(MailPasswordLoginSchema, 'MailPasswordLoginDto') {}
 
+export const MailRegisterCodeSchema = z.object({
+  mail: z.string().email().describe('邮箱'),
+})
+
+export class MailRegisterCodeDto extends createZodDto(MailRegisterCodeSchema, 'MailRegisterCodeDto') {}
+
+export const MailPasswordRegisterSchema = z.object({
+  mail: z.string().email().describe('邮箱'),
+  code: z.string().length(6, { message: '验证码为6位' }).describe('邮箱验证码'),
+  password: z.string().min(8, { message: '密码至少8位' }).describe('密码'),
+})
+
+export class MailPasswordRegisterDto extends createZodDto(MailPasswordRegisterSchema, 'MailPasswordRegisterDto') {}
+
 export const MailRepasswordVerifySchema = z.object({
   mail: z.string().email().describe('邮箱'),
   code: z.string().describe('验证码'),

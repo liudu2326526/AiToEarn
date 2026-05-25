@@ -315,6 +315,13 @@ export class DashscopeVideoService {
     const pricingMode = mode === 'video2video' ? mode : undefined
     const pricing = this.getPrice(modelConfig, resolution, duration, pricingMode)
 
+    if (request.userType === UserType.User) {
+      await this.creditsHelper.ensureEnoughCredits({
+        userId: request.userId,
+        amount: pricing,
+      })
+    }
+
     const startedAt = new Date()
     const result = await this.aiAvailability.executeAsync(
       { provider: 'dashscope', operation: 'videoGeneration', model: providerModel },

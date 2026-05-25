@@ -3,6 +3,9 @@ import { EngagementSubTask, EngagementSubTaskSchema, EngagementTask, EngagementT
 import { InteractionRecord, InteractionRecordSchema } from './interaction-record.schema'
 import { OAuth2Credential, OAuth2CredentialSchema } from './oauth2-credential.schema'
 import { PostMediaContainer, PostMediaContainerSchema } from './post-media-container.schema'
+import { PromotionApplication, PromotionApplicationSchema } from './promotion-application.schema'
+import { PromotionLedger, PromotionLedgerSchema } from './promotion-ledger.schema'
+import { PromotionTask, PromotionTaskSchema } from './promotion-task.schema'
 import { ReplyCommentRecord, ReplyCommentRecordSchema } from './reply-comment-record.schema'
 
 export * from './account.schema'
@@ -10,6 +13,9 @@ export * from './engagement-task.schema'
 export * from './interaction-record.schema'
 export * from './oauth2-credential.schema'
 export * from './post-media-container.schema'
+export * from './promotion-application.schema'
+export * from './promotion-ledger.schema'
+export * from './promotion-task.schema'
 export * from './reply-comment-record.schema'
 
 export const schemas = [
@@ -19,5 +25,8 @@ export const schemas = [
   { name: InteractionRecord.name, schema: InteractionRecordSchema },
   { name: OAuth2Credential.name, schema: OAuth2CredentialSchema },
   { name: PostMediaContainer.name, schema: PostMediaContainerSchema },
+  { name: PromotionApplication.name, schema: PromotionApplicationSchema },
+  { name: PromotionLedger.name, schema: PromotionLedgerSchema },
+  { name: PromotionTask.name, schema: PromotionTaskSchema },
   { name: ReplyCommentRecord.name, schema: ReplyCommentRecordSchema },
 ] as const

@@ -148,6 +148,13 @@ export class OpenAIVideoService {
       duration: seconds ? Number(seconds) : undefined,
     })
 
+    if (userType === UserType.User) {
+      await this.creditsHelper.ensureEnoughCredits({
+        userId,
+        amount: pricing,
+      })
+    }
+
     const startedAt = new Date()
 
     // 如果 input_reference 是 URL，需要先 fetch 后传入 Response
@@ -229,6 +236,13 @@ export class OpenAIVideoService {
       userType,
       model,
     })
+
+    if (userType === UserType.User) {
+      await this.creditsHelper.ensureEnoughCredits({
+        userId,
+        amount: pricing,
+      })
+    }
 
     const startedAt = new Date()
     const result = await this.aiAvailability.executeAsync(

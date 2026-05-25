@@ -21,7 +21,7 @@ describe('volcengineVideoService', () => {
   let mockStorageProvider: vi.Mocked<Pick<StorageProvider, 'parsePathFromUrl' | 'toPresignedUrl'>>
   let mockAiAvailability: vi.Mocked<Pick<AiAvailabilityService, 'executeAsync' | 'recordAsyncComplete'>>
   let mockAsyncSettlementService: vi.Mocked<Pick<AsyncSettlementService, 'createPendingSettlement' | 'getPrepaidPoints' | 'settleSuccess'>>
-  let mockCreditsHelper: vi.Mocked<Pick<CreditsHelperService, 'getBalance' | 'deductCredits'>>
+  let mockCreditsHelper: vi.Mocked<Pick<CreditsHelperService, 'getBalance' | 'ensureEnoughCredits' | 'deductCredits'>>
   let mockModelsConfigService: ModelsConfigService
 
   beforeEach(() => {
@@ -57,6 +57,7 @@ describe('volcengineVideoService', () => {
 
     mockCreditsHelper = {
       getBalance: vi.fn(),
+      ensureEnoughCredits: vi.fn().mockResolvedValue(undefined),
       deductCredits: vi.fn(),
     }
 

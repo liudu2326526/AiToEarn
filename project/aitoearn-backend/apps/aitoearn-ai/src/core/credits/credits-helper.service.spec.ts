@@ -1,6 +1,10 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common'
-import { CreditsHelperService } from '@yikart/helpers'
-import { vi } from 'vitest'
+import { NotFoundException } from '@nestjs/common'
+import { describe, expect, it, vi } from 'vitest'
+import { CreditsHelperService } from '../../../../../libs/helpers/src/credits/credits-helper.service'
+
+vi.mock('@yikart/mongodb', () => ({
+  UserRepository: class {},
+}))
 
 describe('creditsHelperService', () => {
   const createService = () => {
@@ -38,6 +42,30 @@ describe('creditsHelperService', () => {
     }))
   })
 
+  it('checks available credits before provider work starts', async () => {
+    const { service, userRepository } = createService()
+    userRepository.getCreditsBalanceById.mockResolvedValue(80)
+
+    await expect(service.ensureEnoughCredits({
+      userId: 'user-1',
+      amount: 20,
+    })).resolves.toBeUndefined()
+
+    expect(userRepository.getCreditsBalanceById).toHaveBeenCalledWith('user-1')
+  })
+
+  it('rejects preflight when the user has insufficient credits', async () => {
+    const { service, userRepository } = createService()
+    userRepository.getCreditsBalanceById.mockResolvedValue(10)
+
+    await expect(service.ensureEnoughCredits({
+      userId: 'user-1',
+      amount: 20,
+    })).rejects.toMatchObject({
+      message: '余额不足，请联系管理员充值',
+    })
+  })
+
   it('rejects deduction when the user has insufficient credits', async () => {
     const { service, userRepository } = createService()
     userRepository.deductCreditsById.mockResolvedValue(null)
@@ -45,7 +73,9 @@ describe('creditsHelperService', () => {
     await expect(service.deductCredits({
       userId: 'user-1',
       amount: 20,
-    })).rejects.toBeInstanceOf(BadRequestException)
+    })).rejects.toMatchObject({
+      message: '余额不足，请联系管理员充值',
+    })
   })
 
   it('adds credits and fails when the target user does not exist', async () => {
