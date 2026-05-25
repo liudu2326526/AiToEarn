@@ -4,6 +4,7 @@
 
 import type { HomeFeedItem, HomeFeedListParams, HomeFeedListResult } from '../types'
 import type { XhsHomeFeedItem, XhsHomeFeedResponse } from './types'
+import { getXhsCaptureSetupMessage, isLegacyXhsPluginAvailable, requestLegacyXhsApi } from './xhsBridge'
 
 /**
  * 首页列表游标管理器
@@ -126,10 +127,10 @@ export function transformToHomeFeedItem(item: XhsHomeFeedItem): HomeFeedItem {
  */
 export async function getHomeFeedList(params: HomeFeedListParams): Promise<HomeFeedListResult> {
   // 检查插件
-  if (!window.AIToEarnPlugin) {
+  if (!isLegacyXhsPluginAvailable()) {
     return {
       success: false,
-      message: '插件未安装或未就绪',
+      message: getXhsCaptureSetupMessage('首页作品列表需要 AiToEarn 插件的小红书请求能力'),
       items: [],
       hasMore: false,
     }
@@ -171,7 +172,7 @@ export async function getHomeFeedList(params: HomeFeedListParams): Promise<HomeF
   const requestData = buildHomeFeedRequestData(params, cursorScore)
 
   try {
-    const response = await window.AIToEarnPlugin.xhsRequest<XhsHomeFeedResponse>({
+    const response = await requestLegacyXhsApi<XhsHomeFeedResponse>({
       path: '/api/sns/web/v1/homefeed',
       method: 'POST',
       data: requestData,

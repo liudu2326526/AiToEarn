@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AitoBee XHS Bridge</title>
+    <style>
+      body {
+        width: 280px;
+        margin: 0;
+        padding: 16px;
+        color: #0f172a;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f6fbff;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 16px;
+      }
+
+      p {
+        margin: 0;
+        color: #475569;
+        font-size: 13px;
+        line-height: 1.6;
+      }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 12px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: #e0f2fe;
+        color: #0369a1;
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: #0ea5e9;
+      }
+
+      button {
+        width: 100%;
+        margin-top: 14px;
+        border: 0;
+        border-radius: 8px;
+        padding: 9px 12px;
+        color: white;
+        background: linear-gradient(135deg, #38bdf8, #6366f1);
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>AitoBee XHS Bridge</h1>
+    <p>请保持 AitoBee 本地后端运行，并在 Chrome 中登录小红书。插件会连接本机 ws://127.0.0.1:9333。</p>
+    <div class="status" id="status">
+      <span class="dot"></span>
+      检测中
+    </div>
+    <button id="connect">连接 AitoBee</button>
+    <script src="popup.js"></script>
+  </body>
+</html>

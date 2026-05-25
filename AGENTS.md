@@ -8,18 +8,61 @@
 
 ## Project Layout
 
+- 项目当前产品名是 `AitoBee`，历史名称是 `AiToEarn`；代码包名、仓库名、文档或第三方平台文案里仍可能出现 `AiToEarn`，不要在无关改动中批量替换。
+- 本项目是社交媒体内容管理平台，核心能力包括多平台发布、AI 内容生成、互动自动化、创作者/广告主任务市场。
 - `project/aitoearn-backend` 是 Nx + pnpm 后端工作区。
 - `project/aitoearn-web` 是 Next.js + pnpm 前端项目。
 - 根目录主要维护 README、Docker 部署文档、`docker-compose.yml` 和展示资源。
+- `project/aitoearn-backend/apps/aitoearn-server` 是主 API 服务。
+- `project/aitoearn-backend/apps/aitoearn-ai` 是 AI 服务。
+- `project/aitoearn-backend/libs/channel-db` 维护频道域 Mongoose schema 与 repository。
+- `project/aitoearn-backend/libs/mongodb` 维护用户、API Key 等核心 MongoDB schema。
+- `project/aitoearn-backend/libs/helpers` 维护 metric event 和通用工具。
+- `project/aitoearn-backend/libs/aitoearn-auth` 维护 JWT、guard 等认证模块。
+- `project/aitoearn-backend/libs/aitoearn-queue` 维护 BullMQ/Redis 队列。
 
 ## Package & Command Rules
 
 - backend/web 使用 `pnpm`。
 - 根目录没有统一 package，不要在根目录随手执行 install/build。
 - backend 改动优先在 `project/aitoearn-backend` 用 `pnpm nx ...` 验证，并遵循 `project/aitoearn-backend/CLAUDE.md`。
+- Nx 任务优先通过 `nx` 执行，例如 `pnpm nx run aitoearn-server:build`、`pnpm nx run aitoearn-server:test`、`pnpm nx serve aitoearn-server`。
+- 需要跑单个后端测试文件时，可在 `project/aitoearn-backend` 用 `pnpm exec vitest run <path>`。
 - web 改动在 `project/aitoearn-web` 验证，优先使用 `pnpm run type-check` 和 `pnpm build`。
+- web 常用命令包括 `pnpm dev`、`pnpm run type-check`、`pnpm build`、`pnpm run lint`、`pnpm test`。
 - 如果本机 `pnpm`/Corepack 环境异常，可优先使用项目内本地二进制验证，例如 `./node_modules/.bin/tsc --noEmit`、`./node_modules/.bin/next build`、`./node_modules/.bin/nx ...`，但不要在根目录安装依赖。
 - 纯文档改动至少运行 `git diff --check`。
+- 如果可用 Nx MCP 工具，涉及 Nx workspace、project graph、target 或配置问题时优先用 MCP 查看；如果不可用，则直接读取 `project/aitoearn-backend` 内的 Nx 配置文件。
+
+## Backend Architecture Rules
+
+- 后端按 NestJS module 组织，业务域通常放在 `project/aitoearn-backend/apps/aitoearn-server/src/core/<domain>`，新增 domain 需要注册到 `app.module.ts` 或对应上级 module。
+- 后端 DTO/请求校验优先使用 Zod 和 `createZodDto`，不要新增 `class-validator` 风格 DTO，除非现有同模块已经明确采用。
+- 内部库包名使用 `@yikart/*`。
+- `libs/channel-db/src/schemas` 中的 Mongoose schema 要显式设置 `collection`，继承 `BaseTemp`，并使用 `DEFAULT_SCHEMA_OPTIONS`。
+- 新增 channel-db schema 后必须在 `libs/channel-db/src/schemas/index.ts` 中 import/export，并加入 `schemas` 数组，否则 Mongoose model 不会注册。
+- channel-db repository 放在 `libs/channel-db/src/repositories`，遵循现有 `BaseRepository` 模式；新增 repository 后在 `repositories/index.ts` 导出并加入 repositories 列表。
+- 每个 MongoDB collection 优先一个 schema 文件；如果少数现有文件合并多个 schema，新增方案仍优先按 collection 拆分，除非有强关联且能说明原因。
+- BullMQ/Redis 异步任务优先接入现有 `libs/aitoearn-queue` 队列能力，不要手写独立后台轮询服务。
+
+## Frontend Architecture Rules
+
+- 前端使用 Next.js App Router，并通过 `[lng]` 动态段处理多语言路由。
+- 前端状态优先使用 Zustand；页面专属 store 通常和页面组件放在同一目录。
+- API 客户端放在 `project/aitoearn-web/src/api`，使用现有 `http.get<T>(path)`、`http.post<T>(path, data)` 等 `FetchService`/`request` 封装，不要绕过统一请求层。
+- 前端 API base URL 来自 `NEXT_PUBLIC_API_URL`；本地通常指向 `http://127.0.0.1:7001/api`。
+- 路径别名 `@/*` 指向 `project/aitoearn-web/src/*`。
+- UI 组件优先沿用现有 Ant Design、Radix UI、Tailwind CSS、Lucide icons 组合。
+- i18n 文案维护在 `project/aitoearn-web/src/app/i18n/locales/{lang}/`；新增用户可见路由或文案时同步关键语言文件，至少同步 `en` 与 `zh-CN`，对 README 级公开文档仍按三语规则处理。
+- App Router 页面如果只因 query 参数做客户端分流，优先用 client component + `useSearchParams()`，避免无意让 server page 动态化；如果确实需要 server `searchParams`，要在方案/说明中明确取舍。
+
+## Key Integration Points
+
+- 频道账号和 OAuth 数据主要在 `libs/channel-db` 与 `apps/aitoearn-server/src/core/channel/platforms`。
+- 多平台发布链路主要在 `apps/aitoearn-server/src/core/channel/publishing`，前端发布入口复用 `PublishDialog`。
+- 小红书数据抓取/发布依赖浏览器插件或本地 bridge，前端相关代码在 `project/aitoearn-web/src/store/plugin/plats/xhs`；没有插件/bridge 时必须给配置引导，不要显示泛化网络错误。
+- 互动、评论、AI 回复相关能力在 `apps/aitoearn-server/src/core/channel/engagement`、`apps/aitoearn-server/src/core/channel/interact` 和前端 plugin plat modules。
+- 统计事件常量在 `project/aitoearn-backend/libs/helpers/src/metric-event`；新增任务市场、发布、互动埋点时优先复用已有常量。
 
 ## Local Runtime Rules
 

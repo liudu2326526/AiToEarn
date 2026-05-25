@@ -1,10 +1,11 @@
 'use client'
 
 import { Search } from 'lucide-react'
-import { useState } from 'react'
-import { getXhsCaptureSetupMessage } from '@/store/plugin/plats/xhs/autoclawBridge'
-import { getCommentsViaAutoclawBridge } from '@/store/plugin/plats/xhs/workDetail'
+import { useMemo, useState } from 'react'
+import { getCommentList } from '@/store/plugin/plats/xhs/comment'
+import { getXhsCaptureSetupMessage } from '@/store/plugin/plats/xhs/xhsBridge'
 import type { CommentItem } from '@/store/plugin/plats/types'
+import { filterCommentsByKeyword } from './filterComments'
 
 function parseXhsNoteUrl(input: string) {
   const trimmed = input.trim()
@@ -19,9 +20,10 @@ function parseXhsNoteUrl(input: string) {
 export default function NoteCommentSearchPage() {
   const [noteUrl, setNoteUrl] = useState('')
   const [keyword, setKeyword] = useState('')
-  const [comments, setComments] = useState<CommentItem[]>([])
+  const [allComments, setAllComments] = useState<CommentItem[]>([])
   const [message, setMessage] = useState(getXhsCaptureSetupMessage())
   const [loading, setLoading] = useState(false)
+  const comments = useMemo(() => filterCommentsByKeyword(allComments, keyword), [allComments, keyword])
 
   async function searchComments() {
     const { workId, xsecToken } = parseXhsNoteUrl(noteUrl)
@@ -30,19 +32,20 @@ export default function NoteCommentSearchPage() {
       return
     }
     setLoading(true)
-    const res = await getCommentsViaAutoclawBridge({ workId, xsecToken })
+    const res = await getCommentList({ workId, xsecToken })
     setLoading(false)
     if (!res.success) {
-      setComments([])
+      setAllComments([])
       setMessage(res.message || getXhsCaptureSetupMessage())
       return
     }
-    const list = keyword.trim()
-      ? res.comments.filter(item => item.content.includes(keyword.trim()))
-      : res.comments
-    setComments(list)
-    setMessage(list.length ? '' : '未匹配到评论。')
+    setAllComments(res.comments)
+    setMessage(res.comments.length ? '' : '未抓取到评论。')
   }
+
+  const emptyMessage = allComments.length > 0 && comments.length === 0
+    ? '未匹配到评论。'
+    : message
 
   return (
     <div className="min-h-full bg-[#f6fbff] px-6 py-6">
@@ -79,7 +82,7 @@ export default function NoteCommentSearchPage() {
             onChange={event => setKeyword(event.target.value)}
           />
           <div className="mt-8 rounded-lg border border-dashed border-sky-200 bg-sky-50/60 p-6 text-sm text-slate-600">
-            {comments.length === 0 && <div className="text-center">{message}</div>}
+            {comments.length === 0 && <div className="text-center">{emptyMessage}</div>}
             {comments.length > 0 && (
               <div className="divide-y divide-sky-100 rounded-md bg-white">
                 {comments.map(comment => (

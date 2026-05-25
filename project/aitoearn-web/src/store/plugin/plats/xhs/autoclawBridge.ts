@@ -1,7 +1,7 @@
 const DEFAULT_BRIDGE_URL = 'ws://localhost:9333'
 
 export const XHS_CAPTURE_SETUP_MESSAGE
-  = '小红书内容抓取需要配置 XHS Bridge：1. 安装 autoclaw-cc/xiaohongshu-skills 的 Chrome 扩展；2. 本机运行 python scripts/bridge_server.py；3. 在同一个浏览器登录小红书后重试。'
+  = '小红书内容抓取需要配置 AitoBee XHS Bridge：1. 启动 AitoBee 本地后端；2. 在 Chrome 开发者模式加载 project/aitoearn-extension/xhs-bridge 扩展；3. 在同一个浏览器登录小红书后重试。'
 
 export interface AutoclawBridgeStatus {
   serverRunning: boolean
@@ -36,6 +36,7 @@ export async function callAutoclawBridge<T = unknown>(
 
     socket.onopen = () => {
       socket.send(JSON.stringify({
+        id: `${method}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         role: 'cli',
         method,
         ...(params ? { params } : {}),

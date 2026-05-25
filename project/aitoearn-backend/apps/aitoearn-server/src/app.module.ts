@@ -27,6 +27,7 @@ import { ShortLinkModule } from './core/short-link/short-link.module'
 import { ToolsModule } from './core/tools/tools.module'
 import { UnifiedMcpModule } from './core/unified-mcp/unified-mcp.module'
 import { UserModule } from './core/user/user.module'
+import { XhsBridgeModule } from './core/xhs-bridge/xhs-bridge.module'
 
 @Module({
   imports: [
@@ -86,6 +87,7 @@ import { UserModule } from './core/user/user.module'
     RelayModule,
     UnifiedMcpModule,
     PromotionMarketplaceModule,
+    XhsBridgeModule,
   ],
   controllers: [],
   providers: [],

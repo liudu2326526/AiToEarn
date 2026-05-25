@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "AitoBee XHS Bridge",
+  "version": "0.1.0",
+  "description": "Connects AitoBee local service with the user's logged-in Xiaohongshu pages.",
+  "action": {
+    "default_title": "AitoBee XHS Bridge",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": [
+    "alarms",
+    "offscreen",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://www.xiaohongshu.com/*"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' ws://127.0.0.1:9333 ws://localhost:9333"
+  }
+}

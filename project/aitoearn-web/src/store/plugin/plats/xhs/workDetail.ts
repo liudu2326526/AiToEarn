@@ -7,7 +7,13 @@ import type {
   TopicInfo,
   WorkDetail,
 } from '../types'
-import { callAutoclawBridge, getAutoclawBridgeStatus, getXhsCaptureSetupMessage } from './autoclawBridge'
+import { callAutoclawBridge, getXhsBridgeStatus, getXhsCaptureSetupMessage } from './xhsBridge'
+
+export interface XhsWorkMonitorResult extends GetWorkDetailResult {
+  comments: CommentItem[]
+  cursor: string
+  hasMore: boolean
+}
 
 interface AutoclawUser {
   userId?: string
@@ -289,8 +295,8 @@ export async function getWorkDetailViaAutoclawBridge(params: GetWorkDetailParams
     return { success: false, message: getXhsCaptureSetupMessage('缺少小红书 xsec_token，请先从小红书列表或搜索结果进入作品') }
   }
 
-  const status = await getAutoclawBridgeStatus()
-  if (!status.serverRunning || !status.extensionConnected) {
+  const status = await getXhsBridgeStatus()
+  if (!status.ready) {
     return { success: false, message: status.message || getXhsCaptureSetupMessage() }
   }
 
@@ -337,5 +343,27 @@ export async function getCommentsViaAutoclawBridge(params: GetWorkDetailParams):
     hasMore: payload.hasMore,
     total: payload.comments.length,
     rawData: detailResult.rawData,
+  }
+}
+
+export async function getWorkMonitorViaAutoclawBridge(params: GetWorkDetailParams): Promise<XhsWorkMonitorResult> {
+  const detailResult = await getWorkDetailViaAutoclawBridge(params)
+
+  if (!detailResult.success) {
+    return {
+      ...detailResult,
+      comments: [],
+      cursor: '',
+      hasMore: false,
+    }
+  }
+
+  const payload = getCommentPayload(detailResult.rawData as AutoclawFeedDetail)
+
+  return {
+    ...detailResult,
+    comments: payload.comments.map(transformComment),
+    cursor: payload.cursor,
+    hasMore: payload.hasMore,
   }
 }

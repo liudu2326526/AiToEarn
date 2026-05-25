@@ -16,8 +16,8 @@ import type {
   XhsSubCommentItem,
   XhsSubCommentListResponse,
 } from './types'
-import { getXhsCaptureSetupMessage } from './autoclawBridge'
 import { getCommentsViaAutoclawBridge } from './workDetail'
+import { getXhsCaptureSetupMessage, isLegacyXhsPluginAvailable, requestLegacyXhsApi } from './xhsBridge'
 
 // ============================================================================
 // 数据转换函数
@@ -102,7 +102,7 @@ function transformComment(item: XhsCommentItem): CommentItem {
  */
 export async function getCommentList(params: CommentListParams): Promise<CommentListResult> {
   // 检查插件
-  if (!window.AIToEarnPlugin) {
+  if (!isLegacyXhsPluginAvailable()) {
     return getCommentsViaAutoclawBridge(params)
   }
 
@@ -122,7 +122,7 @@ export async function getCommentList(params: CommentListParams): Promise<Comment
       queryParams.set('xsec_token', xsecToken)
     }
 
-    const response = await window.AIToEarnPlugin.xhsRequest<XhsCommentListResponse>({
+    const response = await requestLegacyXhsApi<XhsCommentListResponse>({
       path: `/api/sns/web/v2/comment/page?${queryParams.toString()}`,
       method: 'GET',
     })
@@ -166,7 +166,7 @@ export async function getCommentList(params: CommentListParams): Promise<Comment
  */
 export async function getSubCommentList(params: SubCommentListParams): Promise<CommentListResult> {
   // 检查插件
-  if (!window.AIToEarnPlugin) {
+  if (!isLegacyXhsPluginAvailable()) {
     return {
       success: false,
       message: getXhsCaptureSetupMessage('子评论接口需要 AiToEarn 插件的小红书请求能力'),
@@ -194,7 +194,7 @@ export async function getSubCommentList(params: SubCommentListParams): Promise<C
       queryParams.set('xsec_token', xsecToken)
     }
 
-    const response = await window.AIToEarnPlugin.xhsRequest<XhsSubCommentListResponse>({
+    const response = await requestLegacyXhsApi<XhsSubCommentListResponse>({
       path: `/api/sns/web/v2/comment/sub/page?${queryParams.toString()}`,
       method: 'GET',
     })
