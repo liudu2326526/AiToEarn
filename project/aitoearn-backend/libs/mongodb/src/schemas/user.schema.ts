@@ -131,6 +131,24 @@ export class UserStorage {
   expiredAt?: Date
 }
 
+@Schema({ _id: false })
+export class UserCreditsInfo {
+  @Prop({ required: true, default: 0 })
+  balance: number
+
+  @Prop({ required: false, default: 0 })
+  total?: number
+
+  @Prop({ required: false, default: 'credits' })
+  unit?: string
+
+  @Prop({ type: Object, required: false })
+  lastOperation?: Record<string, unknown>
+
+  @Prop({ required: false })
+  updatedAt?: Date
+}
+
 @Schema({ ...DEFAULT_SCHEMA_OPTIONS, collection: 'user' })
 export class User extends WithTimestampSchema {
   id: string
@@ -220,6 +238,19 @@ export class User extends WithTimestampSchema {
     },
   })
   storage: UserStorage
+
+  @Prop({
+    required: true,
+    default: 0,
+    min: 0,
+  })
+  creditsBalance: number
+
+  @Prop({ type: UserCreditsInfo, required: false })
+  credits?: UserCreditsInfo
+
+  @Prop({ required: false, default: 0 })
+  score?: number
 
   @Prop({
     required: false,

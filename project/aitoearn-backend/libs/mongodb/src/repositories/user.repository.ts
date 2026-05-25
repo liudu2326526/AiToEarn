@@ -1,6 +1,6 @@
 import { InjectModel } from '@nestjs/mongoose'
 import { Pagination, VipStatus } from '@yikart/common'
-import { FilterQuery, Model, RootFilterQuery } from 'mongoose'
+import { FilterQuery, Model, RootFilterQuery, UpdateQuery } from 'mongoose'
 import { UserStatus } from '../enums'
 import { User, UserAiInfo, UserVipInfo } from '../schemas'
 import { BaseRepository, LeanDoc } from './base.repository'
@@ -196,6 +196,89 @@ export class UserRepository extends BaseRepository<User> {
       .lean()
       .exec()
     return users.map(u => u._id.toString())
+  }
+
+  async getCreditsBalanceById(userId: string): Promise<number> {
+    const user = await this.model
+      .findOne({ _id: userId, isDelete: false })
+      .select('creditsBalance credits.balance')
+      .lean()
+      .exec() as { creditsBalance?: number, credits?: { balance?: number } } | null
+
+    if (!user) {
+      return 0
+    }
+
+    return Number(user.creditsBalance ?? user.credits?.balance ?? 0)
+  }
+
+  async incrementCreditsById(
+    userId: string,
+    amount: number,
+    operation?: Record<string, unknown>,
+  ): Promise<number | null> {
+    const now = new Date()
+    const update: UpdateQuery<User> = {
+      $inc: {
+        creditsBalance: amount,
+        'credits.balance': amount,
+        'credits.total': amount,
+      },
+      $set: {
+        'credits.unit': 'credits',
+        'credits.updatedAt': now,
+        ...(operation ? { 'credits.lastOperation': operation } : {}),
+      },
+    }
+
+    const user = await this.model
+      .findOneAndUpdate(
+        { _id: userId, isDelete: false },
+        update,
+        {
+          new: true,
+          projection: { creditsBalance: 1, 'credits.balance': 1 },
+        },
+      )
+      .lean()
+      .exec() as { creditsBalance?: number, credits?: { balance?: number } } | null
+
+    return user ? Number(user.creditsBalance ?? user.credits?.balance ?? 0) : null
+  }
+
+  async deductCreditsById(
+    userId: string,
+    amount: number,
+    operation?: Record<string, unknown>,
+  ): Promise<number | null> {
+    const now = new Date()
+    const user = await this.model
+      .findOneAndUpdate(
+        {
+          _id: userId,
+          isDelete: false,
+          creditsBalance: { $gte: amount },
+        },
+        {
+          $inc: {
+            creditsBalance: -amount,
+            'credits.balance': -amount,
+          },
+          $set: {
+            'credits.unit': 'credits',
+            'credits.updatedAt': now,
+            ...(operation ? { 'credits.lastOperation': operation } : {}),
+          },
+        },
+        {
+          new: true,
+          projection: { creditsBalance: 1, 'credits.balance': 1 },
+        },
+      )
+      .lean()
+      .exec() as { creditsBalance?: number, credits?: { balance?: number } } | null
+
+    return user ? Number(user.creditsBalance ?? user.credits?.balance ?? 0) : null
   }
 
   async listByLibraryId(libraryId: string): Promise<User[]> {
