@@ -6,7 +6,7 @@
 'use client'
 
 import type { BrandImage } from '../index'
-import { Check, ImagePlus } from 'lucide-react'
+import { Check, ImagePlus, Play } from 'lucide-react'
 import Image from 'next/image'
 import { memo, useCallback, useRef, useState } from 'react'
 import { useTransClient } from '@/app/i18n/client'
@@ -95,32 +95,63 @@ const ImageSelectorPopover = memo(({
             )
           : (
               <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
-                {allImages.map(image => (
-                  <button
-                    key={image.id}
-                    type="button"
-                    className="relative aspect-square rounded-md overflow-hidden cursor-pointer group border border-transparent hover:border-primary/50 transition-colors"
-                    onClick={() => handleToggleImage(image.id)}
-                  >
-                    <Image
-                      src={getOssUrl(image.url)}
-                      alt=""
-                      fill
-                      className="object-cover"
-                      sizes="80px"
-                    />
-                    {selectedIds.includes(image.id) && (
-                      <div className="absolute inset-0 bg-primary/30 flex items-center justify-center">
-                        <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
-                          <Check className="h-3 w-3 text-primary-foreground" />
+                {allImages.map((image) => {
+                  const isVideo = image.mediaType === 'video'
+                  return (
+                    <button
+                      key={image.id}
+                      type="button"
+                      className="relative aspect-square rounded-md overflow-hidden cursor-pointer group border border-transparent hover:border-primary/50 transition-colors"
+                      onClick={() => handleToggleImage(image.id)}
+                      title={image.title}
+                    >
+                      {isVideo
+                        ? (
+                            <div className="relative h-full w-full bg-muted">
+                              {image.thumbUrl
+                                ? (
+                                    <Image
+                                      src={getOssUrl(image.thumbUrl)}
+                                      alt=""
+                                      fill
+                                      className="object-cover"
+                                      sizes="80px"
+                                    />
+                                  )
+                                : (
+                                    <div className="flex h-full w-full items-center justify-center">
+                                      <Play className="h-5 w-5 text-muted-foreground" />
+                                    </div>
+                                  )}
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                                <div className="rounded-full bg-black/60 p-1.5">
+                                  <Play className="h-3 w-3 fill-white text-white" />
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        : (
+                            <Image
+                              src={getOssUrl(image.thumbUrl || image.url)}
+                              alt=""
+                              fill
+                              className="object-cover"
+                              sizes="80px"
+                            />
+                          )}
+                      {selectedIds.includes(image.id) && (
+                        <div className="absolute inset-0 bg-primary/30 flex items-center justify-center">
+                          <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                            <Check className="h-3 w-3 text-primary-foreground" />
+                          </div>
                         </div>
-                      </div>
-                    )}
-                    {!selectedIds.includes(image.id) && selectedIds.length + localImageCount >= maxImages && (
-                      <div className="absolute inset-0 bg-background/50" />
-                    )}
-                  </button>
-                ))}
+                      )}
+                      {!selectedIds.includes(image.id) && selectedIds.length + localImageCount >= maxImages && (
+                        <div className="absolute inset-0 bg-background/50" />
+                      )}
+                    </button>
+                  )
+                })}
               </div>
             )}
       </PopoverContent>

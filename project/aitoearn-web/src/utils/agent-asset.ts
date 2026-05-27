@@ -16,6 +16,14 @@ export function isVideoAssetType(type: AssetType): boolean {
   return VIDEO_ASSET_TYPES.includes(type)
 }
 
+function isVideoMimeType(mimeType?: string): boolean {
+  return !!mimeType?.startsWith('video/')
+}
+
+function isImageMimeType(mimeType?: string): boolean {
+  return !!mimeType?.startsWith('image/')
+}
+
 /**
  * 判断是否为图片类型的 Asset
  * @param type - Asset 类型
@@ -32,7 +40,7 @@ export function isImageAssetType(type: AssetType): boolean {
  * @returns MediaItem 格式的数据
  */
 export function convertAssetToMediaItem(asset: AssetVo): MediaItem {
-  const isVideo = isVideoAssetType(asset.type)
+  const isVideo = isVideoMimeType(asset.mimeType) || isVideoAssetType(asset.type)
 
   return {
     _id: asset.id,
@@ -83,7 +91,7 @@ export function filterAssetsByMediaType(
 
   return assets.filter((asset) => {
     // 判断 asset 是视频还是图片
-    const isVideo = isVideoAssetType(asset.type)
+    const isVideo = isVideoMimeType(asset.mimeType) || isVideoAssetType(asset.type)
     const assetMediaType: MediaType = isVideo ? 'video' : 'img'
 
     return types.includes(assetMediaType)
@@ -110,7 +118,7 @@ export function filterAndConvertAssets(
  * @returns 缩略图 URL，视频无封面时返回空字符串
  */
 export function getAssetThumbUrl(asset: AssetVo): string {
-  if (isVideoAssetType(asset.type)) {
+  if (isVideoMimeType(asset.mimeType) || isVideoAssetType(asset.type)) {
     return asset.metadata?.cover || '' // 视频无封面时返回空字符串，由调用方处理占位图
   }
   return asset.url
@@ -122,5 +130,9 @@ export function getAssetThumbUrl(asset: AssetVo): string {
  * @returns 媒体类型 'video' | 'img'
  */
 export function getAssetMediaType(asset: AssetVo): MediaType {
+  if (isVideoMimeType(asset.mimeType))
+    return 'video'
+  if (isImageMimeType(asset.mimeType))
+    return 'img'
   return isVideoAssetType(asset.type) ? 'video' : 'img'
 }

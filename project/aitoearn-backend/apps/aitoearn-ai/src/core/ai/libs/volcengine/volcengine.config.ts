@@ -9,6 +9,7 @@ export const volcengineConfigSchema = z.object({
   spaceName: z.string().describe('Volcengine VOD Space Name'),
   playbackBaseUrl: z.string().describe('播放基础 URL（完整 URL，如 http://play.vod.com）'),
   urlAuthPrimaryKey: z.string().describe('URL 鉴权主密钥'),
+  arkProjectName: z.string().default('default').describe('Volcengine Ark ProjectName for private asset APIs'),
 })
 
 export class VolcengineConfig extends createZodDto(volcengineConfigSchema) {}

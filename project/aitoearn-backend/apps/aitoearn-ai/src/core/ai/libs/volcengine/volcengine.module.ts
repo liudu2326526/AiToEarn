@@ -33,6 +33,7 @@ export class VolcengineModule {
         VolcengineService,
       ],
       exports: [
+        VolcengineConfig,
         // 导出 Facade（保持向后兼容）
         VolcengineService,
         // 导出专门服务（供新代码直接使用）

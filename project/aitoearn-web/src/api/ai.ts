@@ -175,6 +175,52 @@ export async function aiChatStream(data: {
  * @param params.pageSize - 每页数量
  * @returns 素材列表
  */
-export function getAgentAssets(params?: { page?: number, pageSize?: number }) {
+export function getAgentAssets(params?: { page?: number, pageSize?: number, source?: 'agent' | 'userMedia' }) {
   return http.get<AssetListVo>('ai/assets', params)
+}
+
+export interface PortraitAssetVo {
+  id: string
+  sourceAssetId?: string
+  sourceUrl: string
+  filename?: string
+  mimeType?: string
+  size?: number
+  width?: number
+  height?: number
+  projectName?: string
+  volcAssetGroupId?: string
+  volcAssetId?: string
+  assetUri?: string
+  status: 'pending' | 'processing' | 'active' | 'failed'
+  failureReason?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface PortraitAssetListVo {
+  list: PortraitAssetVo[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export function getPortraitAssets(params?: { page?: number, pageSize?: number, status?: PortraitAssetVo['status'] }) {
+  return http.get<PortraitAssetListVo>('ai/portrait-assets', params)
+}
+
+export function createPortraitAsset(data: {
+  url: string
+  sourceAssetId?: string
+  filename?: string
+  mimeType?: string
+  size?: number
+  width?: number
+  height?: number
+}) {
+  return http.post<PortraitAssetVo>('ai/portrait-assets', data)
+}
+
+export function refreshPortraitAsset(id: string) {
+  return http.post<PortraitAssetVo>(`ai/portrait-assets/${id}/refresh`)
 }

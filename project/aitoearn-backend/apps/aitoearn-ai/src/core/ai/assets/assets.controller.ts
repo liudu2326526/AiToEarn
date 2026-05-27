@@ -4,8 +4,11 @@ import { GetToken, TokenInfo } from '@yikart/aitoearn-auth'
 import { AssetListVo } from '@yikart/assets'
 import { ApiDoc, createZodDto, PaginationDtoSchema, UserType } from '@yikart/common'
 import { AssetRepository, AssetStatus, AssetType } from '@yikart/mongodb'
+import { z } from 'zod'
 
-const assetListQuerySchema = PaginationDtoSchema
+const assetListQuerySchema = PaginationDtoSchema.extend({
+  source: z.enum(['agent', 'userMedia']).default('agent'),
+})
 class AssetListQueryDto extends createZodDto(assetListQuerySchema) {}
 
 @ApiTags('Me/Ai/Assets')
@@ -23,23 +26,28 @@ export class AssetsController {
     @GetToken() token: TokenInfo,
     @Query() query: AssetListQueryDto,
   ): Promise<AssetListVo> {
+    const { source, ...pagination } = query
+    const types = source === 'userMedia'
+      ? [AssetType.UserMedia]
+      : [
+          AssetType.AiImage,
+          AssetType.AiVideo,
+          AssetType.AiCard,
+          AssetType.AiChatImage,
+          AssetType.AideoOutput,
+          AssetType.VideoEdit,
+          AssetType.DramaRecap,
+          AssetType.StyleTransfer,
+          AssetType.ImageEdit,
+        ]
+
     const { list, total } = await this.assetRepo.listWithPagination({
       userId: token.id,
       userType: UserType.User,
-      types: [
-        AssetType.AiImage,
-        AssetType.AiVideo,
-        AssetType.AiCard,
-        AssetType.AiChatImage,
-        AssetType.AideoOutput,
-        AssetType.VideoEdit,
-        AssetType.DramaRecap,
-        AssetType.StyleTransfer,
-        AssetType.ImageEdit,
-      ],
+      types,
       statuses: [AssetStatus.Confirmed, AssetStatus.Uploaded],
-      ...query,
+      ...pagination,
     })
-    return new AssetListVo(list.map(item => ({ ...item, url: item.path })), total, query)
+    return new AssetListVo(list.map(item => ({ ...item, url: item.path })), total, pagination)
   }
 }

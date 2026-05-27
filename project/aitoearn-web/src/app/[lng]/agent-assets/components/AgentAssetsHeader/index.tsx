@@ -1,11 +1,10 @@
 /**
- * AgentAssetsHeader - Agent 素材页顶部组件
- * 包含返回按钮、标题（只读模式，无上传按钮）
+ * AgentAssetsHeader - 素材库页顶部组件
  */
 
 'use client'
 
-import { ArrowLeft, Bot } from 'lucide-react'
+import { ArrowLeft, Archive } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useCallback } from 'react'
 import { useTransClient } from '@/app/i18n/client'
@@ -33,10 +32,10 @@ export function AgentAssetsHeader({ total }: AgentAssetsHeaderProps) {
         </Button>
 
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
-            <Bot className="w-4 h-4 text-white" />
+          <div className="w-8 h-8 rounded-lg bg-sky-500 flex items-center justify-center">
+            <Archive className="w-4 h-4 text-white" />
           </div>
-          <h1 className="text-lg font-semibold text-foreground">{t('agentAssets.title')}</h1>
+          <h1 className="text-lg font-semibold text-foreground">{t('agentAssets.libraryTitle')}</h1>
         </div>
 
         {total > 0 && (
@@ -47,8 +46,6 @@ export function AgentAssetsHeader({ total }: AgentAssetsHeaderProps) {
           </span>
         )}
       </div>
-
-      {/* 只读模式：无上传按钮 */}
     </header>
   )
 }

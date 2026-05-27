@@ -94,6 +94,9 @@ export class VolcengineVideoService {
     if (!url) {
       return undefined
     }
+    if (url.startsWith('asset://')) {
+      return url
+    }
     const parsed = this.storageProvider.parsePathFromUrl(url)
     if (parsed.startsWith('http')) {
       return url
@@ -355,6 +358,27 @@ export class VolcengineVideoService {
     }
   }
 
+  private validatePortraitAssetRequirement(model: string, content: Content[]) {
+    const modelConfig = this.getModelConfig(model)
+    if (!modelConfig.requiresPortraitAsset) {
+      return
+    }
+
+    const hasPortraitAsset = content.some((item) => {
+      if (item.type !== ContentType.ImageUrl && item.type !== ContentType.VideoUrl) {
+        return false
+      }
+      const url = item.type === ContentType.ImageUrl
+        ? item.image_url.url
+        : item.video_url.url
+      return url.startsWith('asset://')
+    })
+
+    if (!hasPortraitAsset) {
+      throw new BadRequestException('Seedance Face models require at least one active portrait asset:// reference')
+    }
+  }
+
   private normalizeRequest(request: UserVolcengineGenerationRequestDto) {
     let prompt = ''
     let inlineResolution: string | undefined
@@ -385,9 +409,13 @@ export class VolcengineVideoService {
     })
 
     this.validateContent(normalizedContent)
+    this.validatePortraitAssetRequirement(request.model, normalizedContent)
     if (!prompt.trim()) {
       throw new BadRequestException('text prompt is required')
     }
+
+    const modelConfig = this.getModelConfig(request.model)
+    const runtimeModel = modelConfig.runtimeModel || request.model
 
     const aiLogRequest = {
       model: request.model,
@@ -403,6 +431,7 @@ export class VolcengineVideoService {
 
     const requestBody: CreateVideoGenerationTaskRequest = {
       ...aiLogRequest,
+      model: runtimeModel,
       callback_url: config.ai.volcengine.callbackUrl,
       safety_identifier: this.buildSafetyIdentifier(request.userId, request.userType),
     }

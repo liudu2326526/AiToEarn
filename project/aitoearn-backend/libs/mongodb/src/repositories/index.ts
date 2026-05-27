@@ -11,6 +11,7 @@ import { MaterialRepository } from './material.repository'
 import { MediaGroupRepository } from './media-group.repository'
 import { MediaRepository } from './media.repository'
 import { NotificationRepository } from './notification.repository'
+import { PortraitAssetRepository } from './portrait-asset.repository'
 import { PublishRecordRepository } from './publish-record.repository'
 import { QrCodeArtImageRepository } from './qr-code-art-image.repository'
 import { UserNotificationControlRepository } from './user-notification-control.repository'
@@ -31,6 +32,7 @@ export * from './media-group.repository'
 export * from './media.repository'
 export * from './notification.repository'
 export * from './oauth2-credential.repository'
+export * from './portrait-asset.repository'
 export * from './publish-record.repository'
 export * from './qr-code-art-image.repository'
 export * from './user-notification-control.repository'
@@ -39,6 +41,7 @@ export * from './user.repository'
 export const repositories = [
   AiLogRepository,
   AssetRepository,
+  PortraitAssetRepository,
   BlogRepository,
   NotificationRepository,
   UserRepository,

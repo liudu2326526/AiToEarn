@@ -7,6 +7,12 @@ import { request } from '@/utils/request'
 export { AssetType }
 export type { UploadToOssOptions }
 
+export interface UploadedOssAsset {
+  id: string
+  path?: string
+  url: string
+}
+
 function getOriginalFileName(file: File | Blob) {
   return 'name' in file && typeof file.name === 'string' && file.name
     ? file.name
@@ -70,7 +76,7 @@ async function getPresignedPostData(fileName: string, fileSize: number, contentT
   return res.data
 }
 
-async function confirmUpload(assetId: string, fallbackUrl: string, publicUploadId?: string) {
+async function confirmUpload(assetId: string, fallbackUrl: string, publicUploadId?: string): Promise<UploadedOssAsset> {
   const confirmResponse = await request<ConfirmUploadData>({
     url: getConfirmRequestPath(assetId, publicUploadId),
     method: 'POST',
@@ -82,14 +88,18 @@ async function confirmUpload(assetId: string, fallbackUrl: string, publicUploadI
   if (!confirmResponse || confirmResponse.code !== 0)
     throw new Error(confirmResponse?.message || '上传确认失败')
 
-  return confirmResponse.data?.url || fallbackUrl
+  return {
+    id: confirmResponse.data?.id || assetId,
+    path: confirmResponse.data?.path,
+    url: confirmResponse.data?.url || fallbackUrl,
+  }
 }
 
-// 上传文件到OSS (前端直传 AWS S3)
-export async function uploadToOss(
+// 上传文件到OSS (前端直传 AWS S3)，返回服务端资产信息
+export async function uploadToOssAsset(
   file: File | Blob,
   options?: UploadToOssOptions | ((prog: number) => void),
-): Promise<string> {
+): Promise<UploadedOssAsset> {
   try {
     const opts: UploadToOssOptions
       = typeof options === 'function' ? { onProgress: options } : (options ?? {})
@@ -110,7 +120,7 @@ export async function uploadToOss(
 
     // 直传文件到 AWS S3 (支持进度回调)
     if (opts.onProgress) {
-      return new Promise<string>((resolve, reject) => {
+      return new Promise<UploadedOssAsset>((resolve, reject) => {
         const xhr = new XMLHttpRequest()
 
         // 监听上传进度
@@ -181,4 +191,13 @@ export async function uploadToOss(
     console.error('上传文件失败:', error)
     throw error
   }
+}
+
+// 上传文件到OSS (前端直传 AWS S3)，保留旧调用方的 URL 返回值
+export async function uploadToOss(
+  file: File | Blob,
+  options?: UploadToOssOptions | ((prog: number) => void),
+): Promise<string> {
+  const asset = await uploadToOssAsset(file, options)
+  return asset.url
 }

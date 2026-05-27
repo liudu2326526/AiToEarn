@@ -11,10 +11,13 @@ import type { DraftContentType, VideoModelType } from '@/api/draftGeneration'
 import type { ImageModelInfo, ImageModelPricing, VideoModelInfo, VideoModelPricing } from '@/api/types/draftGeneration'
 import type { PlatType } from '@/app/config/platConfig'
 import type { IUploadedMedia } from '@/components/Chat/MediaUpload'
+import type { PortraitAssetVo } from '@/api/ai'
+import type { AssetVo } from '@/types/agent-asset'
 import isEqual from 'lodash/isEqual'
 import { CircleHelp, Maximize2, RotateCcw, Upload, X } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
+import { getAgentAssets, getPortraitAssets } from '@/api/ai'
 import { usePlanDetailStore } from '@/app/[lng]/brand-promotion/planDetailStore'
 import { AccountPlatInfoMap, TASK_EXCLUDED_PLATFORMS, TaskPlatInfoArr } from '@/app/config/platConfig'
 import { useTransClient } from '@/app/i18n/client'
@@ -23,6 +26,7 @@ import { useMediaUpload } from '@/hooks/useMediaUpload'
 import { useGetClientLng } from '@/hooks/useSystem'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
+import { getAssetMediaType } from '@/utils/agent-asset'
 import { getVideoMeta } from '@/utils/media'
 import { getOssUrl } from '@/utils/oss'
 import { useDraftBoxConfigStore } from '../../draftBoxConfigStore'
@@ -149,6 +153,11 @@ function getPromptsExploreSlugByModel(modelName?: string) {
 export interface BrandImage {
   id: string
   url: string
+  referenceUrl?: string
+  title?: string
+  mediaType?: 'image' | 'video'
+  thumbUrl?: string
+  source?: 'agent' | 'local' | 'portrait'
 }
 
 interface BrandInfoLite {
@@ -167,6 +176,55 @@ function getOpenSourceBrandInfo(): BrandInfoLite | null {
 
 /** 模块级常量，避免 selector 每次返回新引用导致无限重渲染 */
 const EMPTY_IMAGE_LIST: BrandImage[] = []
+const LIBRARY_ASSET_PAGE_SIZE = 100
+
+function getAssetTitle(asset: AssetVo) {
+  return asset.filename || asset.path?.split('/').pop() || asset.id
+}
+
+function toReferenceAsset(asset: AssetVo, source: 'agent' | 'local'): BrandImage | null {
+  const mediaType = getAssetMediaType(asset)
+  if (mediaType !== 'img' && mediaType !== 'video')
+    return null
+
+  return {
+    id: `${source}:${asset.id}`,
+    url: asset.url,
+    referenceUrl: getOssUrl(asset.url),
+    title: getAssetTitle(asset),
+    mediaType: mediaType === 'video' ? 'video' : 'image',
+    thumbUrl: asset.metadata?.cover ? getOssUrl(asset.metadata.cover) : mediaType === 'img' ? getOssUrl(asset.url) : undefined,
+    source,
+  }
+}
+
+function toPortraitReferenceAsset(asset: PortraitAssetVo): BrandImage | null {
+  if (asset.status !== 'active' || !asset.assetUri)
+    return null
+
+  return {
+    id: `portrait:${asset.id}`,
+    url: asset.sourceUrl,
+    referenceUrl: asset.assetUri,
+    title: asset.filename || asset.assetUri,
+    mediaType: 'image',
+    thumbUrl: getOssUrl(asset.sourceUrl),
+    source: 'portrait',
+  }
+}
+
+function findPromptMention(value: string, caretIndex: number) {
+  const beforeCaret = value.slice(0, caretIndex)
+  const match = beforeCaret.match(/(^|\s)@([^\s@]*)$/)
+  if (!match)
+    return null
+
+  return {
+    start: beforeCaret.length - match[2].length - 1,
+    end: caretIndex,
+    query: match[2].toLowerCase(),
+  }
+}
 
 interface AiBatchGenerateBarProps {
   /** 外部传入 groupId，不从 store 读取 */
@@ -187,7 +245,7 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
 
   // 品牌信息（按 groupId）
   const brandInfo = getOpenSourceBrandInfo()
-  const imageList = brandInfo?.imageList ?? EMPTY_IMAGE_LIST
+  const brandImages = brandInfo?.imageList ?? EMPTY_IMAGE_LIST
 
   // 配置 key：按 groupId 隔离
   const configKey = groupId || '__default__'
@@ -230,6 +288,9 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
 
   // 本地状态（从 config 初始化）
   const [promptValue, setPromptValue] = useState('')
+  const [libraryAssets, setLibraryAssets] = useState<BrandImage[]>(EMPTY_IMAGE_LIST)
+  const [isLibraryAssetsLoading, setIsLibraryAssetsLoading] = useState(false)
+  const [assetMention, setAssetMention] = useState<{ start: number, end: number, query: string } | null>(null)
   const [promptEditorOpen, setPromptEditorOpen] = useState(false)
   const [aspectRatio, setAspectRatio] = useState(config.aspectRatio)
   const [duration, setDuration] = useState(config.duration)
@@ -270,6 +331,7 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
   const initialSelectionDone = useRef(false)
   // 组合输入期间避免被 store 回刷打断 IME
   const isPromptComposingRef = useRef(false)
+  const promptTextareaRef = useRef<HTMLTextAreaElement>(null)
   const promptValueRef = useRef(promptValue)
   const captionPromptRef = useRef(captionPrompt)
   const captionSystemPromptRef = useRef(captionSystemPrompt)
@@ -287,6 +349,53 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
 
   // Pricing 数据
   const { pricingData, isLoading: isPricingLoading } = usePricingData()
+
+  useEffect(() => {
+    let disposed = false
+
+    async function loadLibraryAssets() {
+      setIsLibraryAssetsLoading(true)
+      try {
+        const [agentResult, localResult, portraitResult] = await Promise.all([
+          getAgentAssets({ page: 1, pageSize: LIBRARY_ASSET_PAGE_SIZE, source: 'agent' }),
+          getAgentAssets({ page: 1, pageSize: LIBRARY_ASSET_PAGE_SIZE, source: 'userMedia' }),
+          getPortraitAssets({ page: 1, pageSize: LIBRARY_ASSET_PAGE_SIZE }),
+        ])
+
+        if (disposed)
+          return
+
+        const nextAssets = [
+          ...(agentResult?.data?.list || []).map(asset => toReferenceAsset(asset, 'agent')),
+          ...(localResult?.data?.list || []).map(asset => toReferenceAsset(asset, 'local')),
+          ...(portraitResult?.data?.list || []).map(toPortraitReferenceAsset),
+        ].filter(Boolean) as BrandImage[]
+
+        setLibraryAssets(nextAssets)
+      }
+      catch (error) {
+        console.error('Failed to load reference assets:', error)
+        if (!disposed)
+          setLibraryAssets([])
+      }
+      finally {
+        if (!disposed)
+          setIsLibraryAssetsLoading(false)
+      }
+    }
+
+    loadLibraryAssets()
+
+    return () => {
+      disposed = true
+    }
+  }, [])
+
+  const imageList = useMemo(() => {
+    if (brandImages.length > 0)
+      return brandImages
+    return libraryAssets
+  }, [brandImages, libraryAssets])
 
   // 派生：图文模型选项列表
   const imageModelOptions = useMemo(() => {
@@ -351,6 +460,8 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
     const fallbackModelType = modelType || pricingData?.videoModels?.[0]?.name || ''
     return getVideoModelStaticConfig(fallbackModelType, pricingData?.videoModels)
   }, [modelType, pricingData?.videoModels, selectedVideoModelInfos])
+
+  const maxUploadImages = contentType === 'image_text' ? currentImageMaxInputImages : currentVideoModelConfig.maxImages
 
   const currentVideoResolutions = useMemo(() => {
     if (selectedVideoModelInfos.length > 0)
@@ -507,19 +618,19 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
     applyBrandDefaults()
   }, [brandInfo?.id, brandInfo?.status, _hasHydrated, configKey, getConfig, applyBrandDefaults])
 
-  // imageList 异步加载后自动选中默认图片
+  // 品牌图片异步加载后自动选中默认图片；素材库资源只作为用户主动选择的参考素材
   useEffect(() => {
-    if (!initialSelectionDone.current && imageList.length > 0) {
+    if (!initialSelectionDone.current && brandImages.length > 0) {
       const maxImages = contentType === 'image_text'
         ? currentImageMaxInputImages
         : currentVideoModelConfig.maxImages
-      const defaultCount = Math.min(5, maxImages, imageList.length)
-      const defaultIds = imageList.slice(0, defaultCount).map(img => img.id)
+      const defaultCount = Math.min(5, maxImages, brandImages.length)
+      const defaultIds = brandImages.slice(0, defaultCount).map(img => img.id)
       setSelectedIds(defaultIds)
       updateConfig(configKey, { selectedImageIds: defaultIds })
       initialSelectionDone.current = true
     }
-  }, [imageList, modelType, contentType, imageModel, configKey, updateConfig, currentImageMaxInputImages, currentVideoModelConfig])
+  }, [brandImages, modelType, contentType, imageModel, configKey, updateConfig, currentImageMaxInputImages, currentVideoModelConfig])
 
   // 本地上传媒体
   const {
@@ -995,9 +1106,17 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
     }
   }, [configKey, updateConfig])
 
+  const updateAssetMentionFromTextarea = useCallback((textarea: HTMLTextAreaElement) => {
+    if (isPromptComposingRef.current) {
+      return
+    }
+    setAssetMention(findPromptMention(textarea.value, textarea.selectionStart))
+  }, [])
+
   const handlePromptChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     handlePromptValueChange(e.target.value, !isPromptComposingRef.current)
-  }, [handlePromptValueChange])
+    updateAssetMentionFromTextarea(e.target)
+  }, [handlePromptValueChange, updateAssetMentionFromTextarea])
 
   const handlePromptCompositionStart = useCallback(() => {
     isPromptComposingRef.current = true
@@ -1006,12 +1125,48 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
   const handlePromptCompositionEnd = useCallback((e: React.CompositionEvent<HTMLTextAreaElement>) => {
     isPromptComposingRef.current = false
     handlePromptValueChange(e.currentTarget.value)
-  }, [handlePromptValueChange])
+    updateAssetMentionFromTextarea(e.currentTarget)
+  }, [handlePromptValueChange, updateAssetMentionFromTextarea])
+
+  const handlePromptSelect = useCallback((e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+    updateAssetMentionFromTextarea(e.currentTarget)
+  }, [updateAssetMentionFromTextarea])
 
   const handleImagesChange = useCallback((ids: string[]) => {
     setSelectedIds(ids)
     updateConfig(configKey, { selectedImageIds: ids })
   }, [configKey, updateConfig])
+
+  const handleMentionAssetSelect = useCallback((asset: BrandImage) => {
+    const textarea = promptTextareaRef.current
+    const currentMention = assetMention
+    const assetName = (asset.title || asset.id).trim()
+    const mentionText = `@${assetName} `
+    const currentValue = promptValue
+    const start = currentMention?.start ?? currentValue.length
+    const end = currentMention?.end ?? currentValue.length
+    const prefix = currentValue.slice(0, start)
+    const suffix = currentValue.slice(end)
+    const nextPromptValue = `${prefix}${mentionText}${suffix}`
+
+    if (!selectedIds.includes(asset.id)) {
+      if (selectedIds.length + localMediasRef.current.length >= maxUploadImages) {
+        toast.warning(t('detail.referenceAssetCountExceeded', { max: maxUploadImages }))
+      }
+      else {
+        handleImagesChange([...selectedIds, asset.id])
+      }
+    }
+
+    handlePromptValueChange(nextPromptValue)
+    setAssetMention(null)
+
+    window.setTimeout(() => {
+      textarea?.focus()
+      const nextCaret = start + mentionText.length
+      textarea?.setSelectionRange(nextCaret, nextCaret)
+    }, 0)
+  }, [assetMention, handleImagesChange, handlePromptValueChange, maxUploadImages, promptValue, selectedIds, t])
 
   const handleAspectRatioChange = useCallback((ratio: string) => {
     setAspectRatio(ratio)
@@ -1057,13 +1212,13 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
     setSelectedIds(nextSelectedIds)
     updateConfig(configKey, { selectedImageIds: nextSelectedIds })
 
-    if (nextSelectedIds.length === 0 && nextLocalImages.length === 0 && imageList.length > 0 && maxImages > 0) {
-      const defaultCount = Math.min(5, maxImages, imageList.length)
-      const defaultIds = imageList.slice(0, defaultCount).map(img => img.id)
+    if (nextSelectedIds.length === 0 && nextLocalImages.length === 0 && brandImages.length > 0 && maxImages > 0) {
+      const defaultCount = Math.min(5, maxImages, brandImages.length)
+      const defaultIds = brandImages.slice(0, defaultCount).map(img => img.id)
       setSelectedIds(defaultIds)
       updateConfig(configKey, { selectedImageIds: defaultIds })
     }
-  }, [configKey, updateConfig, currentVideoModelConfig, currentImageMaxInputImages, currentImageAspectRatios, imageList, aspectRatio, localMedias, selectedIds, setMedias])
+  }, [configKey, updateConfig, currentVideoModelConfig, currentImageMaxInputImages, currentImageAspectRatios, brandImages, aspectRatio, localMedias, selectedIds, setMedias])
 
   const handleImageModelsChange = useCallback((models: string[]) => {
     if (models.length === 0)
@@ -1258,8 +1413,8 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
       : ([...firstVideoModelConfig.supportedRatios][0] ?? '9:16')
     const firstImageModel = pricingData?.imageModels?.[0]
     const nextPromptValue = defaultPrompt || ''
-    const nextSelectedImageIds = imageList.length > 0
-      ? imageList.slice(0, Math.min(5, firstVideoModelConfig.maxImages, imageList.length)).map(img => img.id)
+    const nextSelectedImageIds = brandImages.length > 0
+      ? brandImages.slice(0, Math.min(5, firstVideoModelConfig.maxImages, brandImages.length)).map(img => img.id)
       : []
 
     clearMedias()
@@ -1308,10 +1463,11 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
     setCaptionSystemPromptDefault(defaultCaptionSystemPrompt)
     setMoreOptionsOpen(true)
     setSelectedIds(nextSelectedImageIds)
+    setAssetMention(null)
 
     defaultPromptFilledRef.current = !!nextPromptValue
     initialSelectionDone.current = nextSelectedImageIds.length > 0
-  }, [availablePlatforms, brandInfo?.id, clearMedias, configKey, defaultCaptionSystemPrompt, defaultPrompt, getConfig, imageList, pricingData, updateConfig])
+  }, [availablePlatforms, brandImages, brandInfo?.id, clearMedias, configKey, defaultCaptionSystemPrompt, defaultPrompt, getConfig, pricingData, updateConfig])
 
   // 本地上传处理
   const handleLocalUpload = useCallback(async (files: FileList) => {
@@ -1467,8 +1623,11 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
       ? mergeCaptionPromptWithSystemRequirement(captionPrompt, captionSystemPrompt)
       : ''
 
+    const selectedReferenceImages = selectedImages.filter(asset => (asset.mediaType ?? 'image') !== 'video')
+    const selectedReferenceVideos = selectedImages.filter(asset => asset.mediaType === 'video')
+
     const imageUrls = [
-      ...selectedImages.map(img => getOssUrl(img.url)),
+      ...selectedReferenceImages.map(img => img.referenceUrl || getOssUrl(img.url)),
       ...localImages.filter(m => m.url).map(m => m.url),
     ]
 
@@ -1517,8 +1676,15 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
         toast.warning(t('detail.noCommonModelParams'))
         return
       }
+      if (selectedVideoModelInfos.some(model => model.requiresPortraitAsset) && !imageUrls.some(url => url.startsWith('asset://'))) {
+        toast.warning(t('detail.portraitAssetRequired'))
+        return
+      }
 
-      const videoUrls = localVideos.filter(v => v.url).map(v => v.url)
+      const videoUrls = [
+        ...selectedReferenceVideos.map(video => video.referenceUrl || getOssUrl(video.url)),
+        ...localVideos.filter(v => v.url).map(v => v.url),
+      ]
 
       const result = await createBatchGenerationWithModels(
         effectiveQuantity,
@@ -1547,7 +1713,7 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
         toast.error(result.errorMessage || t('detail.multiModelGenerateFailed'))
       }
     }
-  }, [promptValue, aspectRatio, duration, resolution, selectedImages, localImages, localVideos, effectiveQuantity, createBatchGenerationWithModels, createImageTextBatchGenerationWithModels, contentType, selectedImageModels, selectedVideoModels, currentImageAspectRatios.length, imagePricing.length, currentVideoModelConfig.supportedRatios, imageCount, isUploading, t, groupId, onGenerated, effectiveSelectedPlatforms, isDraftMode, captionPrompt, captionSystemPrompt])
+  }, [promptValue, aspectRatio, duration, resolution, selectedImages, localImages, localVideos, effectiveQuantity, createBatchGenerationWithModels, createImageTextBatchGenerationWithModels, contentType, selectedImageModels, selectedVideoModels, selectedVideoModelInfos, currentImageAspectRatios.length, imagePricing.length, currentVideoModelConfig.supportedRatios, imageCount, isUploading, t, groupId, onGenerated, effectiveSelectedPlatforms, isDraftMode, captionPrompt, captionSystemPrompt])
 
   // Prompts 探索页 URL（根据当前模型族切换 grok / seedance 提示词页）
   const promptsExploreUrl = useMemo(() => {
@@ -1572,7 +1738,6 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
   }, [t])
 
   // 上传能力判断
-  const maxUploadImages = contentType === 'image_text' ? currentImageMaxInputImages : currentVideoModelConfig.maxImages
   const canUploadImage = selectedIds.length + localImages.length < maxUploadImages
   const canUploadVideo = contentType === 'video' && currentVideoModelConfig.maxVideos > 0 && localVideos.length < currentVideoModelConfig.maxVideos
 
@@ -1605,6 +1770,7 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
         </div>
         <div className="relative w-full sm:flex-1 sm:min-w-0">
           <textarea
+            ref={promptTextareaRef}
             data-testid="draftbox-ai-prompt-input"
             className="w-full resize-none bg-transparent text-sm placeholder:text-muted-foreground focus-visible:outline-none min-h-[80px] max-h-[160px] md:min-h-[100px] pr-12"
             placeholder={placeholder}
@@ -1612,10 +1778,64 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
             onChange={handlePromptChange}
             onCompositionStart={handlePromptCompositionStart}
             onCompositionEnd={handlePromptCompositionEnd}
+            onClick={handlePromptSelect}
+            onKeyUp={handlePromptSelect}
             onPaste={handlePaste}
             maxLength={PROMPT_MAX_LENGTH}
             rows={3}
           />
+          {assetMention && (
+            <div className="absolute left-0 top-9 z-50 w-80 max-w-[calc(100vw-3rem)] rounded-lg border border-sky-100 bg-popover p-2 shadow-lg">
+              <div className="mb-2 px-2 text-xs text-muted-foreground">
+                {isLibraryAssetsLoading ? t('detail.loadingReferenceAssets') : t('detail.mentionReferenceAssets')}
+              </div>
+              <div className="max-h-60 space-y-1 overflow-y-auto">
+                {imageList
+                  .filter((asset) => {
+                    if (!assetMention.query)
+                      return true
+                    return (asset.title || asset.id).toLowerCase().includes(assetMention.query)
+                  })
+                  .slice(0, 12)
+                  .map(asset => (
+                    <button
+                      key={asset.id}
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-sky-50"
+                      onMouseDown={(event) => {
+                        event.preventDefault()
+                        handleMentionAssetSelect(asset)
+                      }}
+                    >
+                      <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md bg-muted">
+                        {asset.mediaType === 'video'
+                          ? (
+                              <span className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
+                                {t('detail.referenceVideo')}
+                              </span>
+                            )
+                          : (
+                              <img
+                                src={getOssUrl(asset.thumbUrl || asset.url)}
+                                alt=""
+                                className="h-full w-full object-cover"
+                              />
+                            )}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm">{asset.title || asset.id}</span>
+                      <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs text-sky-600">
+                        {asset.mediaType === 'video' ? t('detail.referenceVideo') : t('detail.referenceImage')}
+                      </span>
+                    </button>
+                  ))}
+                {!isLibraryAssetsLoading && imageList.length === 0 && (
+                  <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                    {t('detail.noReferenceAssets')}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           <div className="absolute top-0 right-4 flex flex-col items-center gap-0.5">
             {/* 刷新按钮 - 始终可见 */}
             <button

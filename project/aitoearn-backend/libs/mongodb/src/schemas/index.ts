@@ -13,6 +13,7 @@ import { Material, MaterialSchema } from './material.schema'
 import { MediaGroup, MediaGroupSchema } from './media-group.schema'
 import { Media, MediaSchema } from './media.schema'
 import { Notification, NotificationSchema } from './notification.schema'
+import { PortraitAsset, PortraitAssetSchema } from './portrait-asset.schema'
 import { PublishDayInfo, PublishDayInfoSchema } from './publish-day-info.schema'
 import { PublishInfo, PublishInfoSchema } from './publish-info.schema'
 import { PublishRecord, PublishRecordSchema } from './publish-record.schema'
@@ -43,6 +44,7 @@ export * from './media-group.schema'
 export * from './media.schema'
 export * from './notification.schema'
 export * from './oauth2-credential.schema'
+export * from './portrait-asset.schema'
 export * from './publish-day-info.schema'
 export * from './publish-info.schema'
 export * from './publish-record.schema'
@@ -72,6 +74,7 @@ export const schemas = [
   { name: DraftGenerationMemory.name, schema: DraftGenerationMemorySchema },
   { name: UserNotificationControl.name, schema: UserNotificationControlSchema },
   { name: Asset.name, schema: AssetSchema },
+  { name: PortraitAsset.name, schema: PortraitAssetSchema },
   { name: QrCodeArtImage.name, schema: QrCodeArtImageSchema },
   { name: EngagementTask.name, schema: EngagementTaskSchema },
   { name: EngagementSubTask.name, schema: EngagementSubTaskSchema },

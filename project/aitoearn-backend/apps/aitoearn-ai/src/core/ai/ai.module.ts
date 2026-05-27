@@ -7,6 +7,7 @@ import { ImageModule } from './image'
 import { OpenaiModule } from './libs/openai'
 import { LogsModule } from './logs'
 import { ModelsConfigModule } from './models-config'
+import { PortraitAssetsModule } from './portrait-assets'
 import { VideoModule } from './video'
 
 @Module({
@@ -19,9 +20,10 @@ import { VideoModule } from './video'
     AideoModule,
     ModelsConfigModule,
     AssetsModule,
+    PortraitAssetsModule,
   ],
   controllers: [],
   providers: [],
-  exports: [ChatModule, LogsModule, ImageModule, VideoModule, AideoModule, ModelsConfigModule, AssetsModule],
+  exports: [ChatModule, LogsModule, ImageModule, VideoModule, AideoModule, ModelsConfigModule, AssetsModule, PortraitAssetsModule],
 })
 export class AiModule { }

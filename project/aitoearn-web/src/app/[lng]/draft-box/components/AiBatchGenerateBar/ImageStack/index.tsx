@@ -221,15 +221,35 @@ const ImageStack = memo(({
           {images.map((image, index) => {
             const rotation = EXPAND_ROTATIONS[index % EXPAND_ROTATIONS.length]
             const isExiting = exitingKeys.has(image.id)
+            const isVideo = image.mediaType === 'video'
+            const previewUrl = image.referenceUrl || getOssUrl(image.url)
+            const thumbnailUrl = image.thumbUrl ? getOssUrl(image.thumbUrl) : undefined
             return (
               <div
                 key={image.id}
-                className={cn(styles.mobileGridItem, isExiting && styles.imageItemExiting)}
+                className={cn(styles.mobileGridItem, isExiting && styles.imageItemExiting, isVideo && 'group/video')}
                 style={{ '--expand-rotation': `${rotation}deg`, 'transform': `rotate(${rotation}deg)` } as React.CSSProperties}
-                onClick={() => handleMediaClick(getOssUrl(image.url), 'image')}
+                onClick={() => handleMediaClick(previewUrl, isVideo ? 'video' : 'image')}
               >
                 <div className="relative w-full h-full overflow-hidden rounded-md cursor-pointer">
-                  <Image src={getOssUrl(image.url)} alt="" fill className="object-cover" sizes="50px" />
+                  {isVideo
+                    ? (
+                        <>
+                          {thumbnailUrl
+                            ? <Image src={thumbnailUrl} alt="" fill className="object-cover" sizes="50px" />
+                            : (
+                                <div className="flex h-full w-full items-center justify-center bg-muted">
+                                  <Play className="h-4 w-4 text-muted-foreground" />
+                                </div>
+                              )}
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                            <div className="rounded-full bg-black/60 p-1">
+                              <Play className="h-3 w-3 fill-white text-white" />
+                            </div>
+                          </div>
+                        </>
+                      )
+                    : <Image src={thumbnailUrl || getOssUrl(image.url)} alt="" fill className="object-cover" sizes="50px" />}
                 </div>
                 <button
                   type="button"
@@ -358,10 +378,13 @@ const ImageStack = memo(({
               const rotation = STACK_ROTATIONS[index % STACK_ROTATIONS.length]
               const expandRotation = EXPAND_ROTATIONS[index % EXPAND_ROTATIONS.length]
               const isExiting = exitingKeys.has(image.id)
+              const isVideo = image.mediaType === 'video'
+              const previewUrl = image.referenceUrl || getOssUrl(image.url)
+              const thumbnailUrl = image.thumbUrl ? getOssUrl(image.thumbUrl) : undefined
               return (
                 <div
                   key={image.id}
-                  className={cn(styles.imageItem, isExpanded && styles.imageItemExpanded, isExiting && styles.imageItemExiting)}
+                  className={cn(styles.imageItem, isExpanded && styles.imageItemExpanded, isExiting && styles.imageItemExiting, isVideo && 'group/video')}
                   style={isExpanded
                     ? {
                         '--expand-x': `${index * (ITEM_WIDTH + EXPAND_GAP)}px`,
@@ -379,10 +402,27 @@ const ImageStack = memo(({
                       setExpanded(true)
                     setHoveredVideoIndex(null)
                   }}
-                  onClick={() => isExpanded && handleMediaClick(getOssUrl(image.url), 'image')}
+                  onClick={() => isExpanded && handleMediaClick(previewUrl, isVideo ? 'video' : 'image')}
                 >
                   <div className="relative w-full h-full overflow-hidden rounded-md cursor-pointer">
-                    <Image src={getOssUrl(image.url)} alt="" fill className="object-cover" sizes="50px" />
+                    {isVideo
+                      ? (
+                          <>
+                            {thumbnailUrl
+                              ? <Image src={thumbnailUrl} alt="" fill className="object-cover" sizes="50px" />
+                              : (
+                                  <div className="flex h-full w-full items-center justify-center bg-muted">
+                                    <Play className="h-4 w-4 text-muted-foreground" />
+                                  </div>
+                                )}
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                              <div className="rounded-full bg-black/60 p-1">
+                                <Play className="h-3 w-3 fill-white text-white" />
+                              </div>
+                            </div>
+                          </>
+                        )
+                      : <Image src={thumbnailUrl || getOssUrl(image.url)} alt="" fill className="object-cover" sizes="50px" />}
                   </div>
                   {isExpanded && (
                     <button

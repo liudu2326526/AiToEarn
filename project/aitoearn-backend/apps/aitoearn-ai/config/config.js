@@ -25,6 +25,9 @@ const {
   VOLCENGINE_API_KEY,
   VOLCENGINE_ACCESS_KEY_ID,
   VOLCENGINE_SECRET_ACCESS_KEY,
+  VOLC_ACCESS_KEY_ID,
+  VOLC_SECRET_ACCESS_KEY,
+  VOLCENGINE_ARK_PROJECT_NAME,
   VOLCENGINE_VOD_SPACE_NAME,
   VOLCENGINE_URL_AUTH_PRIMARY_KEY,
   OPENAI_API_KEY,
@@ -67,6 +70,15 @@ const GPT_IMAGE_2_SIZES = [
 ]
 
 const GPT_IMAGE_2_ASPECT_RATIOS = ['1:1', '3:2', '2:3', '4:3', '3:4', '5:4', '4:5', '16:9', '9:16']
+const SEEDANCE_DURATIONS = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+
+function buildPerSecondPricing(resolution, pointsPerSecond) {
+  return SEEDANCE_DURATIONS.map(duration => ({
+    resolution,
+    duration,
+    price: duration * pointsPerSecond,
+  }))
+}
 
 function parseGeminiKeyPairs() {
   if (!GEMINI_KEY_PAIRS) {
@@ -132,11 +144,12 @@ module.exports = {
     volcengine: {
       baseUrl: 'https://ark.cn-beijing.volces.com/',
       apiKey: VOLCENGINE_API_KEY,
-      accessKeyId: VOLCENGINE_ACCESS_KEY_ID,
-      secretAccessKey: VOLCENGINE_SECRET_ACCESS_KEY,
+      accessKeyId: VOLCENGINE_ACCESS_KEY_ID || VOLC_ACCESS_KEY_ID,
+      secretAccessKey: VOLCENGINE_SECRET_ACCESS_KEY || VOLC_SECRET_ACCESS_KEY,
       spaceName: VOLCENGINE_VOD_SPACE_NAME,
       playbackBaseUrl: 'http://vod.assets.aitoearn.ai',
       urlAuthPrimaryKey: VOLCENGINE_URL_AUTH_PRIMARY_KEY || '',
+      arkProjectName: VOLCENGINE_ARK_PROJECT_NAME || 'default',
     },
     openai: {
       baseUrl: OPENAI_BASE_URL,
@@ -509,6 +522,30 @@ module.exports = {
             },
           },
           {
+            name: 'doubao-seedance-2-0-260128-face',
+            runtimeModel: 'doubao-seedance-2-0-260128',
+            description: 'Seedance 2.0 Beta Face',
+            summary: '用于真人素材视频生成',
+            requiresPortraitAsset: true,
+            channel: 'volcengine',
+            modes: ['multi-image2video'],
+            resolutions: ['720p'],
+            durations: SEEDANCE_DURATIONS,
+            maxInputImages: 9,
+            aspectRatios: ['16:9', '4:3', '1:1', '3:4', '9:16', '21:9', 'adaptive'],
+            tags: [{ 'en-US': 'Portrait', 'zh-CN': '真人人像' }],
+            defaults: {
+              resolution: '720p',
+              aspectRatio: 'adaptive',
+              duration: 5,
+            },
+            pricing: buildPerSecondPricing('720p', 18),
+            settlement: {
+              withoutVideo: '0.658',
+              withVideo: '0.4',
+            },
+          },
+          {
             name: 'doubao-seedance-2-0-fast-260128',
             description: 'Seedance 2.0 Fast',
             channel: 'volcengine',
@@ -537,6 +574,30 @@ module.exports = {
               { resolution: '720p', duration: 14, price: 168 },
               { resolution: '720p', duration: 15, price: 180 },
             ],
+            settlement: {
+              withoutVideo: '0.529',
+              withVideo: '0.315',
+            },
+          },
+          {
+            name: 'doubao-seedance-2-0-fast-260128-face',
+            runtimeModel: 'doubao-seedance-2-0-fast-260128',
+            description: 'Seedance 2.0 Fast Beta Face',
+            summary: '用于真人素材视频生成',
+            requiresPortraitAsset: true,
+            channel: 'volcengine',
+            modes: ['multi-image2video'],
+            resolutions: ['720p'],
+            durations: SEEDANCE_DURATIONS,
+            maxInputImages: 9,
+            aspectRatios: ['16:9', '4:3', '1:1', '3:4', '9:16', '21:9', 'adaptive'],
+            tags: [{ 'en-US': 'Portrait', 'zh-CN': '真人人像' }],
+            defaults: {
+              resolution: '720p',
+              aspectRatio: 'adaptive',
+              duration: 5,
+            },
+            pricing: buildPerSecondPricing('720p', 9),
             settlement: {
               withoutVideo: '0.529',
               withVideo: '0.315',

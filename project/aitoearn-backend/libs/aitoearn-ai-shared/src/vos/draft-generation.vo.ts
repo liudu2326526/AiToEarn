@@ -63,7 +63,9 @@ export const VideoModelPricingVoSchema = z.object({
 
 export const VideoModelVoSchema = z.object({
   name: z.string().describe('模型名称'),
+  runtimeModel: z.string().optional().describe('上游实际调用模型名称'),
   description: z.string().describe('模型描述'),
+  summary: z.string().optional().describe('模型摘要'),
   channel: z.string().describe('渠道'),
   modes: z.array(z.string()).describe('支持的模式'),
   resolutions: z.array(z.string()).describe('支持的尺寸'),
@@ -77,6 +79,7 @@ export const VideoModelVoSchema = z.object({
     duration: z.number().optional().describe('默认时长'),
   }).describe('默认值'),
   pricing: z.array(VideoModelPricingVoSchema).describe('价格表'),
+  requiresPortraitAsset: z.boolean().optional().describe('是否需要真人人像资产'),
 })
 
 export const DraftGenerationPricingVoSchema = z.object({

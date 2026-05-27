@@ -48,6 +48,8 @@ export interface VideoModelInfo {
   maxInputImages: number
   aspectRatios: string[]
   tags: string[]
+  runtimeModel?: string
+  requiresPortraitAsset?: boolean
   defaults: {
     resolution?: string
     aspectRatio?: string

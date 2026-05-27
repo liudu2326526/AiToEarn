@@ -25,10 +25,13 @@ export interface UploadToOssOptions {
 
 export interface UploadSignData {
   id: string
+  path: string
   url: string
   uploadUrl: string
 }
 
 export interface ConfirmUploadData {
+  id?: string
+  path?: string
   url?: string
 }

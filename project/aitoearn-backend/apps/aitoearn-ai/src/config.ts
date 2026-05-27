@@ -150,6 +150,8 @@ export const aiModelsConfigSchema = z.object({
         withVideo: z.string().optional(),
         withoutVideo: z.string().optional(),
       }).optional(),
+      runtimeModel: z.string().optional(),
+      requiresPortraitAsset: z.boolean().optional(),
     })),
   }),
 })

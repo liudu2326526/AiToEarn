@@ -1,6 +1,5 @@
 /**
- * Agent 素材详情页
- * 展示 Agent 生成的所有图片和视频素材（只读模式）
+ * 素材库页
  */
 
 import type { Metadata } from 'next'
@@ -21,7 +20,7 @@ export async function generateMetadata({
 
   return getMetadata(
     {
-      title: t('agentAssets.title'),
+      title: t('agentAssets.libraryTitle'),
       description: t('agentAssets.description'),
       keywords: t('agentAssets.keywords'),
     },
