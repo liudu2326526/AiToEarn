@@ -15,6 +15,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { cn } from '@/lib/utils'
 import { getOssUrl } from '@/utils/oss'
 
 interface ImageSelectorPopoverProps {
@@ -30,6 +31,14 @@ interface ImageSelectorPopoverProps {
   children: React.ReactNode
 }
 
+type AssetSource = NonNullable<BrandImage['source']>
+
+const ASSET_SOURCE_TABS: Array<{ value: AssetSource, labelKey: string, emptyKey: string }> = [
+  { value: 'agent', labelKey: 'detail.agentGeneratedAssets', emptyKey: 'detail.noAgentAssets' },
+  { value: 'local', labelKey: 'detail.localUploadedAssets', emptyKey: 'detail.noLocalAssets' },
+  { value: 'portrait', labelKey: 'detail.portraitAssets', emptyKey: 'detail.noPortraitAssets' },
+]
+
 const ImageSelectorPopover = memo(({
   allImages,
   selectedIds,
@@ -42,8 +51,11 @@ const ImageSelectorPopover = memo(({
 }: ImageSelectorPopoverProps) => {
   const { t } = useTransClient('brandPromotion')
   const [internalOpen, setInternalOpen] = useState(false)
+  const [activeSource, setActiveSource] = useState<AssetSource>('agent')
   const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen
   const lastToggleTimeRef = useRef(0)
+  const activeImages = allImages.filter(image => (image.source ?? 'agent') === activeSource)
+  const activeTab = ASSET_SOURCE_TABS.find(tab => tab.value === activeSource) ?? ASSET_SOURCE_TABS[0]
 
   const handleOpenChange = useCallback((newOpen: boolean) => {
     // 选择图片后 200ms 内忽略 close 事件，防止 re-render 导致 Popover 意外关闭
@@ -86,16 +98,32 @@ const ImageSelectorPopover = memo(({
           </span>
         </div>
 
-        {allImages.length === 0
+        <div className="mb-3 inline-flex rounded-lg bg-sky-50 p-1">
+          {ASSET_SOURCE_TABS.map(tab => (
+            <button
+              key={tab.value}
+              type="button"
+              className={cn(
+                'h-8 whitespace-nowrap rounded-md px-3 text-xs font-medium text-slate-500 transition-colors hover:text-slate-900',
+                activeSource === tab.value && 'bg-background text-slate-950 shadow-sm',
+              )}
+              onClick={() => setActiveSource(tab.value)}
+            >
+              {t(tab.labelKey)}
+            </button>
+          ))}
+        </div>
+
+        {activeImages.length === 0
           ? (
               <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
                 <ImagePlus className="mr-2 h-4 w-4" />
-                {t('detail.noStoreImages')}
+                {t(activeTab.emptyKey)}
               </div>
             )
           : (
               <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
-                {allImages.map((image) => {
+                {activeImages.map((image) => {
                   const isVideo = image.mediaType === 'video'
                   return (
                     <button

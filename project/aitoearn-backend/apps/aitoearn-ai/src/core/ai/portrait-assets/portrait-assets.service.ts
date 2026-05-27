@@ -11,6 +11,7 @@ const MIN_SIDE = 300
 const MAX_SIDE = 6000
 const MIN_RATIO = 0.4
 const MAX_RATIO = 2.5
+const MAX_VOLCENGINE_ASSET_NAME_LENGTH = 64
 
 interface ImageDimensions {
   width: number
@@ -183,6 +184,68 @@ export class PortraitAssetsService {
     return latest
   }
 
+  private getFilenameExtension(filename?: string, sourceUrl?: string) {
+    const raw = filename || sourceUrl || ''
+    const basename = raw.split(/[?#]/)[0].split(/[\\/]/).pop() || ''
+    const match = basename.match(/(\.[a-zA-Z0-9]{1,12})$/)
+    return match?.[1]?.toLowerCase() || ''
+  }
+
+  private buildVolcengineAssetName(asset: Pick<PortraitAsset, 'id' | 'filename' | 'sourceUrl'>) {
+    const extension = this.getFilenameExtension(asset.filename, asset.sourceUrl)
+    const baseName = `portrait-${asset.id}`
+    const maxBaseLength = MAX_VOLCENGINE_ASSET_NAME_LENGTH - extension.length
+    return `${baseName.slice(0, Math.max(1, maxBaseLength))}${extension}`
+  }
+
+  private async registerVolcengineAsset(record: Partial<PortraitAsset> & {
+    id: string
+    userId: string
+    userType: UserType
+    sourceUrl: string
+    status: PortraitAssetStatus
+  }) {
+    const groupId = record.volcAssetGroupId || await this.getOrCreateGroup(record.userId, record.userType)
+    const created = await this.arkAssetService.createAsset(
+      groupId,
+      record.sourceUrl,
+      this.buildVolcengineAssetName(record as PortraitAsset),
+    )
+    const assetUri = `asset://${created.id}`
+    let nextStatus = created.status === 'active' ? PortraitAssetStatus.Active : PortraitAssetStatus.Processing
+    let failureReason = created.error
+    let rawResponse = created.raw
+
+    if (created.id) {
+      const latest = await this.pollAsset(created.id)
+      nextStatus = latest.status === 'active'
+        ? PortraitAssetStatus.Active
+        : latest.status === 'failed'
+          ? PortraitAssetStatus.Failed
+          : PortraitAssetStatus.Processing
+      failureReason = latest.error || failureReason
+      rawResponse = latest.raw
+    }
+
+    const update: Record<string, any> = {
+      $set: {
+        volcAssetGroupId: groupId,
+        volcAssetId: created.id,
+        assetUri,
+        status: nextStatus,
+        rawResponse,
+      },
+    }
+    if (failureReason) {
+      update['$set'].failureReason = failureReason
+    }
+    else {
+      update['$unset'] = { failureReason: '' }
+    }
+
+    return await this.portraitAssetRepo.updateById(record.id, update)
+  }
+
   async create(userId: string, userType: UserType, dto: CreatePortraitAssetDto) {
     const sourceUrl = await this.resolveSource(userId, userType, dto)
     const fetchedDimensions = dto.width && dto.height ? undefined : await this.fetchDimensions(sourceUrl)
@@ -207,30 +270,7 @@ export class PortraitAssetsService {
     })
 
     try {
-      const created = await this.arkAssetService.createAsset(groupId, sourceUrl, dto.filename)
-      const assetUri = `asset://${created.id}`
-      let nextStatus = created.status === 'active' ? PortraitAssetStatus.Active : PortraitAssetStatus.Processing
-      let failureReason = created.error
-      let rawResponse = created.raw
-
-      if (created.id) {
-        const latest = await this.pollAsset(created.id)
-        nextStatus = latest.status === 'active'
-          ? PortraitAssetStatus.Active
-          : latest.status === 'failed'
-            ? PortraitAssetStatus.Failed
-            : PortraitAssetStatus.Processing
-        failureReason = latest.error || failureReason
-        rawResponse = latest.raw
-      }
-
-      const updated = await this.portraitAssetRepo.updateById(record.id, {
-        volcAssetId: created.id,
-        assetUri,
-        status: nextStatus,
-        failureReason,
-        rawResponse,
-      })
+      const updated = await this.registerVolcengineAsset(record)
       return this.toVo(updated || record)
     }
     catch (error: any) {
@@ -247,7 +287,20 @@ export class PortraitAssetsService {
       throw new BadRequestException('Portrait asset not found')
     }
     if (!record.volcAssetId) {
-      return this.toVo(record)
+      if (record.status !== PortraitAssetStatus.Failed) {
+        return this.toVo(record)
+      }
+
+      try {
+        const updated = await this.registerVolcengineAsset(record)
+        return this.toVo(updated || record)
+      }
+      catch (error: any) {
+        const updated = await this.portraitAssetRepo.updateStatus(record.id, PortraitAssetStatus.Failed, {
+          failureReason: error.message || 'Failed to register portrait asset',
+        })
+        return this.toVo(updated || record)
+      }
     }
 
     const latest = await this.arkAssetService.getAsset(record.volcAssetId)

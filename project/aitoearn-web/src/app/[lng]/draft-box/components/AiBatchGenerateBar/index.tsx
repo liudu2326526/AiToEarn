@@ -226,6 +226,60 @@ function findPromptMention(value: string, caretIndex: number) {
   }
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function getAssetReferenceUrl(asset: BrandImage) {
+  return asset.referenceUrl || getOssUrl(asset.url)
+}
+
+function getAssetMentionKeys(asset: BrandImage) {
+  return [
+    asset.title,
+    asset.id,
+    asset.id.split(':').pop(),
+  ]
+    .map(value => value?.trim())
+    .filter((value): value is string => Boolean(value))
+}
+
+function findPromptMentionedAssets(value: string, assets: BrandImage[]) {
+  if (!value.includes('@'))
+    return []
+
+  return assets.filter((asset) => {
+    return getAssetMentionKeys(asset).some((key) => {
+      return new RegExp(`(^|\\s)@${escapeRegExp(key)}(?=\\s|$)`).test(value)
+    })
+  })
+}
+
+function uniqAssets(assets: BrandImage[]) {
+  const assetMap = new Map<string, BrandImage>()
+  assets.forEach((asset) => {
+    if (!assetMap.has(asset.id))
+      assetMap.set(asset.id, asset)
+  })
+  return [...assetMap.values()]
+}
+
+function normalizePromptAssetMentions(
+  value: string,
+  assets: BrandImage[],
+  getMentionLabel: (asset: BrandImage, index: number) => string,
+) {
+  return assets.reduce((nextValue, asset, index) => {
+    const label = getMentionLabel(asset, index + 1)
+    return getAssetMentionKeys(asset).reduce((currentValue, key) => {
+      return currentValue.replace(
+        new RegExp(`(^|\\s)@${escapeRegExp(key)}(?=\\s|$)`, 'g'),
+        `$1@${label}`,
+      )
+    }, nextValue)
+  }, value)
+}
+
 interface AiBatchGenerateBarProps {
   /** 外部传入 groupId，不从 store 读取 */
   groupId?: string
@@ -1041,6 +1095,14 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
     return selectedIds.map(id => imageMap.get(id)).filter(Boolean) as BrandImage[]
   }, [selectedIds, imageList])
 
+  const getAssetMentionLabel = useCallback((asset: BrandImage, index: number) => {
+    if (asset.source === 'portrait')
+      return `${t('detail.referencePortraitAsset')}${index}`
+    if (asset.mediaType === 'video')
+      return `${t('detail.referenceVideo')}${index}`
+    return `${t('detail.referenceImage')}${index}`
+  }, [t])
+
   // 平台兼容性检查
   const incompatiblePlatforms = useMemo(() => {
     return checkPlatformCompatibility(
@@ -1140,8 +1202,9 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
   const handleMentionAssetSelect = useCallback((asset: BrandImage) => {
     const textarea = promptTextareaRef.current
     const currentMention = assetMention
-    const assetName = (asset.title || asset.id).trim()
-    const mentionText = `@${assetName} `
+    const existingIndex = selectedIds.indexOf(asset.id)
+    const mentionIndex = existingIndex >= 0 ? existingIndex + 1 : selectedIds.length + 1
+    const mentionText = `@${getAssetMentionLabel(asset, mentionIndex)} `
     const currentValue = promptValue
     const start = currentMention?.start ?? currentValue.length
     const end = currentMention?.end ?? currentValue.length
@@ -1166,7 +1229,7 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
       const nextCaret = start + mentionText.length
       textarea?.setSelectionRange(nextCaret, nextCaret)
     }, 0)
-  }, [assetMention, handleImagesChange, handlePromptValueChange, maxUploadImages, promptValue, selectedIds, t])
+  }, [assetMention, getAssetMentionLabel, handleImagesChange, handlePromptValueChange, maxUploadImages, promptValue, selectedIds, t])
 
   const handleAspectRatioChange = useCallback((ratio: string) => {
     setAspectRatio(ratio)
@@ -1623,11 +1686,18 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
       ? mergeCaptionPromptWithSystemRequirement(captionPrompt, captionSystemPrompt)
       : ''
 
-    const selectedReferenceImages = selectedImages.filter(asset => (asset.mediaType ?? 'image') !== 'video')
-    const selectedReferenceVideos = selectedImages.filter(asset => asset.mediaType === 'video')
+    const promptMentionedAssets = findPromptMentionedAssets(promptValue, imageList)
+    const referenceAssets = uniqAssets([...selectedImages, ...promptMentionedAssets])
+    if (referenceAssets.length + localMediasRef.current.length > maxUploadImages) {
+      toast.warning(t('detail.referenceAssetCountExceeded', { max: maxUploadImages }))
+      return
+    }
+    const promptForSubmit = normalizePromptAssetMentions(promptValue, referenceAssets, getAssetMentionLabel).trim()
+    const selectedReferenceImages = referenceAssets.filter(asset => (asset.mediaType ?? 'image') !== 'video')
+    const selectedReferenceVideos = referenceAssets.filter(asset => asset.mediaType === 'video')
 
     const imageUrls = [
-      ...selectedReferenceImages.map(img => img.referenceUrl || getOssUrl(img.url)),
+      ...selectedReferenceImages.map(getAssetReferenceUrl),
       ...localImages.filter(m => m.url).map(m => m.url),
     ]
 
@@ -1644,7 +1714,7 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
       const result = await createImageTextBatchGenerationWithModels(
         effectiveQuantity,
         selectedImageModels,
-        promptValue.trim(),
+        promptForSubmit,
         imageCount,
         aspectRatio,
         imageUrls.length > 0 ? imageUrls : undefined,
@@ -1682,7 +1752,7 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
       }
 
       const videoUrls = [
-        ...selectedReferenceVideos.map(video => video.referenceUrl || getOssUrl(video.url)),
+        ...selectedReferenceVideos.map(getAssetReferenceUrl),
         ...localVideos.filter(v => v.url).map(v => v.url),
       ]
 
@@ -1692,7 +1762,7 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
         duration,
         resolution || undefined,
         aspectRatio,
-        promptValue.trim() || undefined,
+        promptForSubmit || undefined,
         imageUrls.length > 0 ? imageUrls : undefined,
         videoUrls.length > 0 ? videoUrls : undefined,
         groupId,
@@ -1713,7 +1783,7 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className, forceDraftMo
         toast.error(result.errorMessage || t('detail.multiModelGenerateFailed'))
       }
     }
-  }, [promptValue, aspectRatio, duration, resolution, selectedImages, localImages, localVideos, effectiveQuantity, createBatchGenerationWithModels, createImageTextBatchGenerationWithModels, contentType, selectedImageModels, selectedVideoModels, selectedVideoModelInfos, currentImageAspectRatios.length, imagePricing.length, currentVideoModelConfig.supportedRatios, imageCount, isUploading, t, groupId, onGenerated, effectiveSelectedPlatforms, isDraftMode, captionPrompt, captionSystemPrompt])
+  }, [promptValue, imageList, getAssetMentionLabel, maxUploadImages, aspectRatio, duration, resolution, selectedImages, localImages, localVideos, effectiveQuantity, createBatchGenerationWithModels, createImageTextBatchGenerationWithModels, contentType, selectedImageModels, selectedVideoModels, selectedVideoModelInfos, currentImageAspectRatios.length, imagePricing.length, currentVideoModelConfig.supportedRatios, imageCount, isUploading, t, groupId, onGenerated, effectiveSelectedPlatforms, isDraftMode, captionPrompt, captionSystemPrompt])
 
   // Prompts 探索页 URL（根据当前模型族切换 grok / seedance 提示词页）
   const promptsExploreUrl = useMemo(() => {
