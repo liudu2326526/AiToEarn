@@ -35,8 +35,8 @@
 | `project/aitoearn-backend/libs/channel-db/src/repositories/monitored-post.repository.ts` | Upsert/list/detail/update-status operations for monitored posts. |
 | `project/aitoearn-backend/libs/channel-db/src/schemas/monitored-post-fetch-log.schema.ts` | Fetch attempt log used for daily account limits and debugging. |
 | `project/aitoearn-backend/libs/channel-db/src/repositories/monitored-post-fetch-log.repository.ts` | Count and write monitored-post fetch attempts. |
-| `project/aitoearn-backend/libs/channel-db/src/schemas/index.ts` | Register `MonitoredPost` schema. |
-| `project/aitoearn-backend/libs/channel-db/src/repositories/index.ts` | Export/register `MonitoredPostRepository`. |
+| `project/aitoearn-backend/libs/channel-db/src/schemas/index.ts` | Register `MonitoredPost` and `MonitoredPostFetchLog` schemas. |
+| `project/aitoearn-backend/libs/channel-db/src/repositories/index.ts` | Export/register `MonitoredPostRepository` and `MonitoredPostFetchLogRepository`. |
 
 ### Backend Acquisition Module
 
@@ -84,7 +84,7 @@ Create `monitored-post.repository.spec.ts` covering:
 
 ```ts
 describe('MonitoredPostRepository', () => {
-  it('upserts the same platform/account/postId into one monitored post', async () => {
+  it('upserts the same user/platform/account/postId into one monitored post', async () => {
     const first = await repository.upsertByIdentity({
       userId: 'user-1',
       platform: 'xhs',
@@ -530,6 +530,8 @@ export class WorkDataController {
 Use one explicit parser helper for the three planned platforms:
 
 ```ts
+import { BadRequestException } from '@nestjs/common'
+
 private extractPostId(platform: string, postUrl: string, explicitPostId?: string) {
   if (explicitPostId) return explicitPostId
 
@@ -554,6 +556,40 @@ private extractPostId(platform: string, postUrl: string, explicitPostId?: string
   }
 
   throw new BadRequestException('Cannot parse postId from postUrl; pass postId explicitly.')
+}
+```
+
+Use these method signatures so controller, tests, and user isolation stay aligned:
+
+```ts
+async createManual(userId: string, dto: CreateMonitoredPostDto) {
+  const postId = this.extractPostId(dto.platform, dto.postUrl, dto.postId)
+  return await this.monitoredPostRepository.upsertByIdentity({
+    userId,
+    platform: dto.platform,
+    accountId: dto.accountId,
+    postId,
+    postUrl: dto.postUrl,
+    source: 'manual',
+    monitorStatus: 'active',
+    fetchStatus: 'idle',
+  })
+}
+
+async listMonitoredPosts(userId: string, query: ListMonitoredPostQueryDto) {
+  const filter: Record<string, unknown> = { userId }
+  if (query.platform) filter.platform = query.platform
+  if (query.accountId) filter.accountId = query.accountId
+  if (query.source) filter.source = query.source
+  if (query.monitorStatus) filter.monitorStatus = query.monitorStatus
+  if (query.fetchStatus) filter.fetchStatus = query.fetchStatus
+  if (query.keyword) {
+    filter.$or = [
+      { title: { $regex: query.keyword, $options: 'i' } },
+      { postUrl: { $regex: query.keyword, $options: 'i' } },
+    ]
+  }
+  return await this.monitoredPostRepository.listByFilter(filter, query.page, query.pageSize)
 }
 ```
 
@@ -718,6 +754,25 @@ it('does not fetch when account config disables comment fetch', async () => {
   const result = await service.fetchNow('user-1', 'monitored-post-id')
 
   expect(result.fetchStatus).toBe('not_configured')
+  expect(acquisitionService.fetchNow).not.toHaveBeenCalled()
+})
+```
+
+Also cover the daily limit path backed by fetch logs:
+
+```ts
+it('does not fetch when the account daily comment fetch limit is reached', async () => {
+  accountOpsConfigRepository.getByAccountId.mockResolvedValue({
+    accountId: 'account-1',
+    enableCommentFetch: true,
+    dailyCommentFetchLimit: 2,
+  })
+  monitoredPostFetchLogRepository.countAccountFetchesSince.mockResolvedValue(2)
+
+  const result = await service.fetchNow('user-1', 'monitored-post-id')
+
+  expect(result.fetchStatus).toBe('not_configured')
+  expect(result.capabilityReason).toBe('daily comment fetch limit reached')
   expect(acquisitionService.fetchNow).not.toHaveBeenCalled()
 })
 ```
@@ -1011,6 +1066,7 @@ Use `/acquisition/capability?platform=xhs&accountId=...`, `/douyin`, `/kwai` and
 **Files:**
 - Modify: `project/aitoearn-backend/apps/aitoearn-server/src/core/acquisition/workers/acquisition-comment-fetch.consumer.ts`
 - Modify: `project/aitoearn-backend/apps/aitoearn-server/src/core/acquisition/work-data/work-data.service.ts`
+- Use new repository from Task 1: `MonitoredPostFetchLogRepository`
 
 - [ ] **Step 1: Ensure manual fetch sets `fetching` first**
 
@@ -1035,9 +1091,23 @@ Map acquisition result:
 | `pending_confirmation` | `pending_confirmation` |
 | `failed` | `failed` |
 
+After mapping the result, always write one fetch log record so `dailyCommentFetchLimit` has real data to count:
+
+```ts
+await this.monitoredPostFetchLogRepository.record({
+  userId,
+  monitoredPostId: post.id,
+  accountId: post.accountId,
+  platform: post.platform,
+  fetchStatus,
+  fetchBatch: result.fetchBatch || post.lastFetchBatch || '',
+  reason: result.capabilityReason || '',
+})
+```
+
 - [ ] **Step 3: Queue fetch uses monitored-post ID**
 
-When adding future queued fetch support, include monitored-post ID in the queue payload or re-resolve by `platform/accountId/postId`.
+When adding future queued fetch support, include `userId` and `monitoredPostId` in the queue payload or re-resolve by `userId/platform/accountId/postId`.
 
 - [ ] **Step 4: Verify worker**
 
@@ -1090,11 +1160,13 @@ Verify:
 
 - [ ] **API smoke test**
 
+Use the same prefix configured in `NEXT_PUBLIC_API_URL`. For the current local proxy convention that is:
+
 ```bash
 curl -s 'http://127.0.0.1:7001/api/acquisition/work-data/monitored-posts?page=1&pageSize=20'
 ```
 
-Expected: response has `items`, `total`, `page`, `pageSize`.
+Expected: authenticated response has `items`, `total`, `page`, `pageSize`. If the local API URL is pointed directly at the Nest server without the `/api` proxy prefix, use `/acquisition/work-data/monitored-posts` instead.
 
 ---
 
