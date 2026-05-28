@@ -33,6 +33,8 @@
 |---|---|
 | `project/aitoearn-backend/libs/channel-db/src/schemas/monitored-post.schema.ts` | Master record for posts under monitoring. |
 | `project/aitoearn-backend/libs/channel-db/src/repositories/monitored-post.repository.ts` | Upsert/list/detail/update-status operations for monitored posts. |
+| `project/aitoearn-backend/libs/channel-db/src/schemas/monitored-post-fetch-log.schema.ts` | Fetch attempt log used for daily account limits and debugging. |
+| `project/aitoearn-backend/libs/channel-db/src/repositories/monitored-post-fetch-log.repository.ts` | Count and write monitored-post fetch attempts. |
 | `project/aitoearn-backend/libs/channel-db/src/schemas/index.ts` | Register `MonitoredPost` schema. |
 | `project/aitoearn-backend/libs/channel-db/src/repositories/index.ts` | Export/register `MonitoredPostRepository`. |
 
@@ -70,6 +72,8 @@
 **Files:**
 - Create: `project/aitoearn-backend/libs/channel-db/src/schemas/monitored-post.schema.ts`
 - Create: `project/aitoearn-backend/libs/channel-db/src/repositories/monitored-post.repository.ts`
+- Create: `project/aitoearn-backend/libs/channel-db/src/schemas/monitored-post-fetch-log.schema.ts`
+- Create: `project/aitoearn-backend/libs/channel-db/src/repositories/monitored-post-fetch-log.repository.ts`
 - Modify: `project/aitoearn-backend/libs/channel-db/src/schemas/index.ts`
 - Modify: `project/aitoearn-backend/libs/channel-db/src/repositories/index.ts`
 - Test: `project/aitoearn-backend/libs/channel-db/src/repositories/monitored-post.repository.spec.ts`
@@ -82,6 +86,7 @@ Create `monitored-post.repository.spec.ts` covering:
 describe('MonitoredPostRepository', () => {
   it('upserts the same platform/account/postId into one monitored post', async () => {
     const first = await repository.upsertByIdentity({
+      userId: 'user-1',
       platform: 'xhs',
       accountId: 'account-1',
       postId: 'post-1',
@@ -91,6 +96,7 @@ describe('MonitoredPostRepository', () => {
     })
 
     const second = await repository.upsertByIdentity({
+      userId: 'user-1',
       platform: 'xhs',
       accountId: 'account-1',
       postId: 'post-1',
@@ -130,6 +136,9 @@ export type MonitoredPostFetchStatus = 'idle' | 'fetching' | 'ready' | 'failed' 
 @Schema({ ...DEFAULT_SCHEMA_OPTIONS, collection: 'monitored_post' })
 export class MonitoredPost extends BaseTemp {
   id: string
+
+  @Prop({ required: true, index: true, type: String })
+  userId: string
 
   @Prop({ required: true, index: true, type: String })
   platform: string
@@ -181,7 +190,7 @@ export class MonitoredPost extends BaseTemp {
 }
 
 export const MonitoredPostSchema = SchemaFactory.createForClass(MonitoredPost)
-MonitoredPostSchema.index({ platform: 1, accountId: 1, postId: 1 }, { unique: true })
+MonitoredPostSchema.index({ userId: 1, platform: 1, accountId: 1, postId: 1 }, { unique: true })
 ```
 
 - [ ] **Step 4: Add repository**
@@ -205,15 +214,23 @@ export class MonitoredPostRepository extends BaseRepository<MonitoredPost> {
   }
 
   async upsertByIdentity(data: Partial<MonitoredPost> & {
+    userId: string
     platform: string
     accountId: string
     postId: string
     postUrl: string
     source: string
   }) {
+    const { monitorStatus, fetchStatus, ...setData } = data
     return await this.monitoredPostModel.findOneAndUpdate(
-      { platform: data.platform, accountId: data.accountId, postId: data.postId },
-      { $set: data, $setOnInsert: { monitorStatus: 'active', fetchStatus: 'idle' } },
+      { userId: data.userId, platform: data.platform, accountId: data.accountId, postId: data.postId },
+      {
+        $set: setData,
+        $setOnInsert: {
+          monitorStatus: monitorStatus || 'active',
+          fetchStatus: fetchStatus || 'idle',
+        },
+      },
       { new: true, upsert: true },
     )
   }
@@ -231,35 +248,126 @@ export class MonitoredPostRepository extends BaseRepository<MonitoredPost> {
     return await this.monitoredPostModel.findByIdAndUpdate(id, { $set: data }, { new: true })
   }
 
-  async findByIdentity(platform: string, accountId: string, postId: string) {
-    return await this.monitoredPostModel.findOne({ platform, accountId, postId })
+  async findByIdentity(userId: string, platform: string, accountId: string, postId: string) {
+    return await this.monitoredPostModel.findOne({ userId, platform, accountId, postId })
   }
 }
 ```
 
-- [ ] **Step 5: Register schema and repository**
+- [ ] **Step 5: Add fetch log schema and repository**
+
+Create `monitored-post-fetch-log.schema.ts`:
+
+```ts
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose'
+import { DEFAULT_SCHEMA_OPTIONS } from '../channel-db.constants'
+import { BaseTemp } from './time.tamp'
+
+@Schema({ ...DEFAULT_SCHEMA_OPTIONS, collection: 'monitored_post_fetch_log' })
+export class MonitoredPostFetchLog extends BaseTemp {
+  id: string
+
+  @Prop({ required: true, index: true, type: String })
+  userId: string
+
+  @Prop({ required: true, index: true, type: String })
+  monitoredPostId: string
+
+  @Prop({ required: true, index: true, type: String })
+  accountId: string
+
+  @Prop({ required: true, index: true, type: String })
+  platform: string
+
+  @Prop({ required: true, index: true, type: String })
+  fetchStatus: string
+
+  @Prop({ type: String, default: '' })
+  fetchBatch: string
+
+  @Prop({ type: String, default: '' })
+  reason: string
+
+  @Prop({ required: true, index: true, type: Date })
+  fetchedAt: Date
+}
+
+export const MonitoredPostFetchLogSchema = SchemaFactory.createForClass(MonitoredPostFetchLog)
+MonitoredPostFetchLogSchema.index({ userId: 1, accountId: 1, fetchedAt: -1 })
+```
+
+Create `monitored-post-fetch-log.repository.ts`:
+
+```ts
+import { Injectable } from '@nestjs/common'
+import { InjectModel } from '@nestjs/mongoose'
+import { Model } from 'mongoose'
+import { DB_CONNECTION_NAME } from '../common'
+import { MonitoredPostFetchLog } from '../schemas'
+import { BaseRepository } from './base.repository'
+
+@Injectable()
+export class MonitoredPostFetchLogRepository extends BaseRepository<MonitoredPostFetchLog> {
+  constructor(
+    @InjectModel(MonitoredPostFetchLog.name, DB_CONNECTION_NAME) private fetchLogModel: Model<MonitoredPostFetchLog>,
+  ) {
+    super(fetchLogModel)
+  }
+
+  async countAccountFetchesSince(userId: string, accountId: string, since: Date) {
+    return await this.fetchLogModel.countDocuments({
+      userId,
+      accountId,
+      fetchedAt: { $gte: since },
+    })
+  }
+
+  async record(data: {
+    userId: string
+    monitoredPostId: string
+    accountId: string
+    platform: string
+    fetchStatus: string
+    fetchBatch?: string
+    reason?: string
+  }) {
+    return await this.create({
+      ...data,
+      fetchBatch: data.fetchBatch || '',
+      reason: data.reason || '',
+      fetchedAt: new Date(),
+    })
+  }
+}
+```
+
+- [ ] **Step 6: Register schemas and repositories**
 
 Add imports/exports and array entries in:
 
 ```ts
 // libs/channel-db/src/schemas/index.ts
 import { MonitoredPost, MonitoredPostSchema } from './monitored-post.schema'
+import { MonitoredPostFetchLog, MonitoredPostFetchLogSchema } from './monitored-post-fetch-log.schema'
 
-export { MonitoredPost, MonitoredPostSchema }
+export { MonitoredPost, MonitoredPostSchema, MonitoredPostFetchLog, MonitoredPostFetchLogSchema }
 
 schemas.push({ name: MonitoredPost.name, schema: MonitoredPostSchema })
+schemas.push({ name: MonitoredPostFetchLog.name, schema: MonitoredPostFetchLogSchema })
 ```
 
 ```ts
 // libs/channel-db/src/repositories/index.ts
 import { MonitoredPostRepository } from './monitored-post.repository'
+import { MonitoredPostFetchLogRepository } from './monitored-post-fetch-log.repository'
 
-export { MonitoredPostRepository }
+export { MonitoredPostRepository, MonitoredPostFetchLogRepository }
 
 repositories.push(MonitoredPostRepository)
+repositories.push(MonitoredPostFetchLogRepository)
 ```
 
-- [ ] **Step 6: Verify repository test passes**
+- [ ] **Step 7: Verify repository test passes**
 
 ```bash
 cd project/aitoearn-backend
@@ -287,23 +395,21 @@ Create `work-data.service.spec.ts` with tests for:
 
 ```ts
 it('creates a manual monitored post and extracts xhs postId from url', async () => {
-  const result = await service.createManual({
+  const result = await service.createManual('user-1', {
     platform: 'xhs',
     accountId: 'account-1',
     postUrl: 'https://www.xiaohongshu.com/explore/abc123?xsec_token=token',
   })
 
+  expect(result.userId).toBe('user-1')
   expect(result.postId).toBe('abc123')
   expect(result.source).toBe('manual')
 })
 ```
 
 ```ts
-it('lists comments with pagination and data source', async () => {
-  const result = await service.listComments({
-    platform: 'xhs',
-    accountId: 'account-1',
-    postId: 'abc123',
+it('lists comments with pagination and data source only for the current user', async () => {
+  const result = await service.listComments('user-1', 'monitored-post-id', {
     page: 1,
     pageSize: 20,
   })
@@ -379,14 +485,14 @@ export class WorkDataController {
 
   @ApiDoc({ summary: 'List monitored posts', query: ListMonitoredPostQueryDto.schema })
   @Get('/monitored-posts')
-  async list(@Query() query: ListMonitoredPostQueryDto) {
-    return await this.workDataService.listMonitoredPosts(query)
+  async list(@GetToken() token: TokenInfo, @Query() query: ListMonitoredPostQueryDto) {
+    return await this.workDataService.listMonitoredPosts(token.id, query)
   }
 
   @ApiDoc({ summary: 'Get monitored post detail' })
   @Get('/monitored-posts/:id')
-  async detail(@Param('id') id: string) {
-    return await this.workDataService.getDetail(id)
+  async detail(@GetToken() token: TokenInfo, @Param('id') id: string) {
+    return await this.workDataService.getDetail(token.id, id)
   }
 
   @ApiDoc({ summary: 'Fetch monitored post now' })
@@ -397,14 +503,14 @@ export class WorkDataController {
 
   @ApiDoc({ summary: 'List post snapshot history', query: SnapshotHistoryQueryDto.schema })
   @Get('/monitored-posts/:id/snapshots')
-  async snapshots(@Param('id') id: string, @Query() query: SnapshotHistoryQueryDto) {
-    return await this.workDataService.listSnapshots(id, query.limit)
+  async snapshots(@GetToken() token: TokenInfo, @Param('id') id: string, @Query() query: SnapshotHistoryQueryDto) {
+    return await this.workDataService.listSnapshots(token.id, id, query.limit)
   }
 
   @ApiDoc({ summary: 'List monitored post comments', query: WorkCommentQueryDto.schema })
   @Get('/monitored-posts/:id/comments')
-  async comments(@Param('id') id: string, @Query() query: WorkCommentQueryDto) {
-    return await this.workDataService.listComments(id, query)
+  async comments(@GetToken() token: TokenInfo, @Param('id') id: string, @Query() query: WorkCommentQueryDto) {
+    return await this.workDataService.listComments(token.id, id, query)
   }
 }
 ```
@@ -414,11 +520,42 @@ export class WorkDataController {
 `WorkDataService` should:
 
 - create/upsert monitored post from manual link;
-- list monitored posts with filters;
+- store `userId` on every monitored post and force all list/detail/snapshot/comment queries to filter by `userId`;
+- list monitored posts with filters, always merging `{ userId }` into the repository filter;
 - call existing `AcquisitionService.fetchNow()` when user clicks fetch;
 - update `MonitoredPost.fetchStatus`, `lastFetchedAt`, `lastFetchBatch`, `latestMetrics`, `latestCommentCount`;
 - read `PostSnapshotRepository.listByPost()` for history;
 - read enhanced `CommentSnapshotRepository.listByPostPaged()` for comments.
+
+Use one explicit parser helper for the three planned platforms:
+
+```ts
+private extractPostId(platform: string, postUrl: string, explicitPostId?: string) {
+  if (explicitPostId) return explicitPostId
+
+  const url = new URL(postUrl)
+  if (platform === 'xhs') {
+    const match = url.pathname.match(/\/(?:explore|discovery\/item)\/([^/?#]+)/)
+    if (match?.[1]) return match[1]
+  }
+
+  if (platform === 'douyin') {
+    const modalId = url.searchParams.get('modal_id')
+    if (modalId) return modalId
+    const match = url.pathname.match(/\/video\/([^/?#]+)/)
+    if (match?.[1]) return match[1]
+  }
+
+  if (platform === 'kwai') {
+    const photoId = url.searchParams.get('photoId') || url.searchParams.get('photo_id')
+    if (photoId) return photoId
+    const match = url.pathname.match(/\/short-video\/([^/?#]+)/)
+    if (match?.[1]) return match[1]
+  }
+
+  throw new BadRequestException('Cannot parse postId from postUrl; pass postId explicitly.')
+}
+```
 
 - [ ] **Step 5: Enhance snapshot repositories**
 
@@ -516,7 +653,7 @@ it('creates monitored post from published backfill job', async () => {
     postId: 'post-1',
   })
 
-  const result = await monitoredPostRepository.findByIdentity('xhs', 'account-1', 'post-1')
+  const result = await monitoredPostRepository.findByIdentity('user-1', 'xhs', 'account-1', 'post-1')
   expect(result?.source).toBe('published_backfill')
 })
 ```
@@ -531,8 +668,9 @@ async upsertFromPublishedBackfill(data: {
   postUrl: string
   postId?: string
 }) {
-  const postId = data.postId || this.extractPostId(data.platform, data.postUrl)
+  const postId = this.extractPostId(data.platform, data.postUrl, data.postId)
   return await this.monitoredPostRepository.upsertByIdentity({
+    userId: data.userId,
     platform: data.platform,
     accountId: data.accountId,
     postId,
@@ -566,12 +704,13 @@ Expected: published backfill test passes.
 - Modify: `project/aitoearn-backend/apps/aitoearn-server/src/core/acquisition/work-data/work-data.service.ts`
 - Modify: `project/aitoearn-backend/apps/aitoearn-server/src/core/acquisition/content/acquisition-content.dto.ts` only if existing DTO lacks fields already in Phase 2 plan.
 - Use existing repository: `AccountOpsConfigRepository`
+- Use new repository from Task 1: `MonitoredPostFetchLogRepository`
 
 - [ ] **Step 1: Write failing test for disabled comment fetch**
 
 ```ts
 it('does not fetch when account config disables comment fetch', async () => {
-  accountOpsConfigRepository.findByAccountId.mockResolvedValue({
+  accountOpsConfigRepository.getByAccountId.mockResolvedValue({
     accountId: 'account-1',
     enableCommentFetch: false,
   })
@@ -588,18 +727,52 @@ it('does not fetch when account config disables comment fetch', async () => {
 Before fetching:
 
 ```ts
-const config = await this.accountOpsConfigRepository.findByAccountId(post.accountId)
+const config = await this.accountOpsConfigRepository.getByAccountId(post.accountId)
 if (config && config.enableCommentFetch === false) {
-  return await this.monitoredPostRepository.updateFetchResult(post.id, {
+  const updated = await this.monitoredPostRepository.updateFetchResult(post.id, {
     fetchStatus: 'not_configured',
     capabilityReason: 'Comment fetch is disabled by account operation config',
   })
+  await this.monitoredPostFetchLogRepository.record({
+    userId,
+    monitoredPostId: post.id,
+    accountId: post.accountId,
+    platform: post.platform,
+    fetchStatus: 'not_configured',
+    reason: 'Comment fetch is disabled by account operation config',
+  })
+  return updated
 }
 ```
 
 - [ ] **Step 3: Apply daily fetch limit**
 
-If `dailyCommentFetchLimit` is present, count monitored-post fetches for the same account on the current UTC date. Return `not_configured` or `failed` with reason `daily comment fetch limit reached` when exceeded.
+Use `MonitoredPostFetchLogRepository` instead of `MonitoredPost.lastFetchedAt`; the latter only stores the latest fetch and cannot count same-day attempts.
+
+```ts
+if (config?.dailyCommentFetchLimit !== undefined && config.dailyCommentFetchLimit >= 0) {
+  const startOfUtcDay = new Date()
+  startOfUtcDay.setUTCHours(0, 0, 0, 0)
+  const usedToday = await this.monitoredPostFetchLogRepository.countAccountFetchesSince(userId, post.accountId, startOfUtcDay)
+
+  if (usedToday >= config.dailyCommentFetchLimit) {
+    const reason = 'daily comment fetch limit reached'
+    const updated = await this.monitoredPostRepository.updateFetchResult(post.id, {
+      fetchStatus: 'not_configured',
+      capabilityReason: reason,
+    })
+    await this.monitoredPostFetchLogRepository.record({
+      userId,
+      monitoredPostId: post.id,
+      accountId: post.accountId,
+      platform: post.platform,
+      fetchStatus: 'not_configured',
+      reason,
+    })
+    return updated
+  }
+}
+```
 
 - [ ] **Step 4: Verify**
 
@@ -628,6 +801,7 @@ export type MonitoredPostFetchStatus = 'idle' | 'fetching' | 'ready' | 'failed' 
 
 export interface MonitoredPostItem {
   id: string
+  userId: string
   platform: AcquisitionPlatform
   accountId: string
   postId: string
@@ -666,29 +840,29 @@ export interface WorkCommentItem {
 }
 
 export async function listMonitoredPosts(params: Record<string, string | number | undefined>) {
-  const response = await http.get<WorkDataListResponse>('acquisition/work-data/monitored-posts', { params })
-  if (!response || response.code !== 0) throw new Error(response?.message || 'list monitored posts failed')
+  const response = await http.get<WorkDataListResponse>('acquisition/work-data/monitored-posts', params)
+  if (!response || String(response.code) !== '0') throw new Error(response?.message || 'list monitored posts failed')
   return response.data
 }
 
 export async function createMonitoredPost(data: { platform: AcquisitionPlatform, accountId: string, postUrl: string, postId?: string }) {
   const response = await http.post<MonitoredPostItem>('acquisition/work-data/monitored-posts', data)
-  if (!response || response.code !== 0) throw new Error(response?.message || 'create monitored post failed')
+  if (!response || String(response.code) !== '0') throw new Error(response?.message || 'create monitored post failed')
   return response.data
 }
 
 export async function fetchMonitoredPost(id: string) {
   const response = await http.post<MonitoredPostItem>(`acquisition/work-data/monitored-posts/${id}/fetch`)
-  if (!response || response.code !== 0) throw new Error(response?.message || 'fetch monitored post failed')
+  if (!response || String(response.code) !== '0') throw new Error(response?.message || 'fetch monitored post failed')
   return response.data
 }
 
 export async function listMonitoredPostComments(id: string, params: Record<string, string | number | undefined>) {
   const response = await http.get<{ items: WorkCommentItem[], total: number, page: number, pageSize: number }>(
     `acquisition/work-data/monitored-posts/${id}/comments`,
-    { params },
+    params,
   )
-  if (!response || response.code !== 0) throw new Error(response?.message || 'list monitored post comments failed')
+  if (!response || String(response.code) !== '0') throw new Error(response?.message || 'list monitored post comments failed')
   return response.data
 }
 ```
