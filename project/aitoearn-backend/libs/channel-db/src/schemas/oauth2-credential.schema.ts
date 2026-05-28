@@ -20,6 +20,7 @@ export class OAuth2Credential extends BaseTemp {
   @Prop({
     required: true,
     enum: AccountType,
+    type: String,
   })
   platform: AccountType
 

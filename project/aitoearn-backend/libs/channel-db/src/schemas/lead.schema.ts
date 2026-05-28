@@ -52,10 +52,10 @@ export class Lead extends BaseTemp {
   @Prop({ type: String, default: '' })
   userName: string
 
-  @Prop({ required: true, enum: LeadStage, default: LeadStage.NewComment, index: true })
+  @Prop({ required: true, enum: LeadStage, default: LeadStage.NewComment, index: true, type: String })
   stage: LeadStage
 
-  @Prop({ required: true, enum: LeadStatus, default: LeadStatus.Pending, index: true })
+  @Prop({ required: true, enum: LeadStatus, default: LeadStatus.Pending, index: true, type: String })
   status: LeadStatus
 
   @Prop({ type: String, default: '', index: true })

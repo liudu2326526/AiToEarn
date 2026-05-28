@@ -19,7 +19,7 @@ export class HookTemplate extends BaseTemp {
   @Prop({ required: true, index: true, type: String })
   name: string
 
-  @Prop({ required: true, enum: HookTemplateCategory, index: true })
+  @Prop({ required: true, enum: HookTemplateCategory, index: true, type: String })
   category: HookTemplateCategory
 
   @Prop({ required: true, type: String })

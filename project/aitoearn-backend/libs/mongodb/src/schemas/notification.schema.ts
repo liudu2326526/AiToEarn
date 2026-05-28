@@ -58,6 +58,7 @@ export class Notification extends WithTimestampSchema {
     index: true,
     required: true,
     default: UserType.User,
+    type: String,
   })
   userType: UserType
 

@@ -12,4 +12,27 @@ export class HookTemplateRepository extends BaseRepository<HookTemplate> {
   ) {
     super(hookTemplateModel)
   }
+
+  async getByName(name: string) {
+    return await this.hookTemplateModel.findOne({ name }).lean({ virtuals: true }).exec()
+  }
+
+  async listEnabledForSelection(query: {
+    platform: string
+    accountId?: string
+    category?: string
+  }) {
+    return await this.hookTemplateModel.find({
+      enabled: true,
+      $and: [
+        { $or: [{ applicablePlatforms: { $size: 0 } }, { applicablePlatforms: query.platform }] },
+        { $or: [{ applicableAccountIds: { $size: 0 } }, { applicableAccountIds: query.accountId || '' }] },
+        { $or: [{ applicableCategories: { $size: 0 } }, { applicableCategories: query.category || '' }] },
+      ],
+    }).lean({ virtuals: true }).exec()
+  }
+
+  async updateEnabledById(id: string, enabled: boolean) {
+    return await this.updateOne({ _id: id }, { $set: { enabled } })
+  }
 }

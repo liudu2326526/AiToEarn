@@ -5,6 +5,7 @@ import { config } from '../../../../config'
 import {
   DouyinAccessTokenInfo,
   DouyinClientTokenInfo,
+  DouyinCommentListResponse,
   DouyinOpenTicketInfo,
   DouyinShareSchemaOptions,
   DouyinUserInfo,
@@ -271,6 +272,64 @@ client_token 的有效时间为 2 个小时，重复获取 client_token 后会�
     catch (error) {
       this.logger.error({
         path: 'douyin getUserVideoList error',
+        data: error,
+      })
+      throw new Error(String(error))
+    }
+  }
+
+  async getItemCommentList(
+    accessToken: string,
+    params: { openId: string, itemId: string, cursor?: number, count?: number },
+  ): Promise<DouyinCommentListResponse> {
+    try {
+      const messageRes = await axios.get<{
+        data: DouyinCommentListResponse
+        extra?: {
+          error_code?: number
+          description?: string
+          sub_error_code?: number
+          sub_description?: string
+          logid?: string
+          now?: number
+        }
+      }>('https://open.douyin.com/item/comment/list', {
+        params: {
+          open_id: params.openId,
+          item_id: params.itemId,
+          cursor: params.cursor ?? 0,
+          count: params.count ?? 50,
+        },
+        headers: {
+          'Content-Type': 'application/json',
+          'access-token': accessToken,
+        },
+      })
+      const responseData = messageRes.data.data
+      const errorCode = messageRes.data.extra?.error_code ?? responseData?.error_code ?? 0
+      if (errorCode !== 0) {
+        const description = messageRes.data.extra?.description
+          || messageRes.data.extra?.sub_description
+          || responseData?.description
+          || 'get item comment list failed'
+        this.logger.error({
+          path: 'douyin getItemCommentList error',
+          data: messageRes.data,
+        })
+        throw new Error(description)
+      }
+      if (!responseData) {
+        this.logger.error({
+          path: 'douyin getItemCommentList empty response',
+          data: messageRes.data,
+        })
+        throw new Error('get item comment list empty response')
+      }
+      return responseData
+    }
+    catch (error) {
+      this.logger.error({
+        path: 'douyin getItemCommentList error',
         data: error,
       })
       throw new Error(String(error))

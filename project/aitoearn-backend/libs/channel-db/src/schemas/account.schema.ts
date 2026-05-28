@@ -21,6 +21,7 @@ export class Account extends BaseTemp {
   @Prop({
     required: true,
     enum: AccountType,
+    type: String,
   })
   type: AccountType
 
@@ -53,6 +54,7 @@ export class Account extends BaseTemp {
   @Prop({
     required: true,
     default: AccountStatus.NORMAL,
+    type: String,
   })
   status: AccountStatus // 登录状态，用于判断是否失效
 }

@@ -5,10 +5,10 @@ import { WithTimestampSchema } from './timestamp.schema'
 
 @Schema({ _id: false })
 export class DraftGenerationMemoryItem {
-  @Prop({ required: true })
+  @Prop({ required: true, type: String })
   id: string
 
-  @Prop({ required: true })
+  @Prop({ required: true, type: String })
   text: string
 
   @Prop({ required: true, type: Date })
@@ -24,10 +24,10 @@ export const DraftGenerationMemoryItemSchema = SchemaFactory.createForClass(Draf
 export class DraftGenerationMemory extends WithTimestampSchema {
   id: string
 
-  @Prop({ required: true, index: true })
+  @Prop({ required: true, index: true, type: String })
   userId: string
 
-  @Prop({ required: true, index: true, enum: DraftGenerationMemoryContentType })
+  @Prop({ required: true, index: true, enum: DraftGenerationMemoryContentType, type: String })
   contentType: DraftGenerationMemoryContentType
 
   @Prop({ required: true, type: [DraftGenerationMemoryItemSchema], default: [] })

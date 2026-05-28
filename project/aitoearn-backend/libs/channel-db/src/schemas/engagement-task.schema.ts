@@ -63,6 +63,7 @@ export class EngagementTask extends BaseTemp {
     required: true,
     enum: EngagementTaskType,
     default: EngagementTaskType.REPLY,
+    type: String,
   })
   taskType: EngagementTaskType
 
@@ -70,6 +71,7 @@ export class EngagementTask extends BaseTemp {
     required: true,
     enum: EngagementTargetScope,
     default: EngagementTargetScope.ALL,
+    type: String,
   })
   targetScope: EngagementTargetScope
 
@@ -83,6 +85,7 @@ export class EngagementTask extends BaseTemp {
     required: true,
     enum: EngagementTaskStatus,
     default: EngagementTaskStatus.CREATED,
+    type: String,
   })
   status: EngagementTaskStatus
 
@@ -157,6 +160,7 @@ export class EngagementSubTask extends BaseTemp {
     required: true,
     enum: EngagementTaskStatus,
     default: EngagementTaskStatus.CREATED,
+    type: String,
   })
   status: EngagementTaskStatus
 }

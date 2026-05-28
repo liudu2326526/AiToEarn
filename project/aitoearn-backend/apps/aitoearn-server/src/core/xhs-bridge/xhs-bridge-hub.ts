@@ -18,6 +18,12 @@ interface PendingRequest {
   timer: ReturnType<typeof setTimeout>
 }
 
+interface DirectRequest {
+  resolve: (value: unknown) => void
+  reject: (error: Error) => void
+  timer: ReturnType<typeof setTimeout>
+}
+
 interface XhsBridgeHubOptions {
   requestTimeoutMs?: number
 }
@@ -27,6 +33,7 @@ const SOCKET_OPEN = 1
 export class XhsBridgeHub {
   private extensionSocket?: BridgeSocket
   private readonly pendingRequests = new Map<string, PendingRequest>()
+  private readonly directRequests = new Map<string, DirectRequest>()
   private readonly requestTimeoutMs: number
 
   constructor(options: XhsBridgeHubOptions = {}) {
@@ -40,6 +47,12 @@ export class XhsBridgeHub {
   disconnect(socket: BridgeSocket): void {
     if (this.extensionSocket === socket) {
       this.extensionSocket = undefined
+
+      for (const [id, request] of this.directRequests) {
+        clearTimeout(request.timer)
+        request.reject(new Error('AitoBee XHS Chrome 扩展已断开连接'))
+        this.directRequests.delete(id)
+      }
     }
 
     for (const [id, request] of this.pendingRequests) {
@@ -48,6 +61,43 @@ export class XhsBridgeHub {
         this.pendingRequests.delete(id)
       }
     }
+  }
+
+  getStatus() {
+    return {
+      extensionConnected: this.isExtensionConnected(),
+    }
+  }
+
+  async callExtension<T = unknown>(
+    method: string,
+    params?: Record<string, unknown>,
+    timeoutMs = this.requestTimeoutMs,
+  ): Promise<T> {
+    if (!this.extensionSocket || !this.isOpen(this.extensionSocket)) {
+      throw new Error('AitoBee XHS Chrome 扩展未连接')
+    }
+
+    const id = "server-" + method + "-" + Date.now() + "-" + Math.random().toString(36).slice(2)
+
+    return await new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.directRequests.delete(id)
+        reject(new Error('XHS Bridge 命令超时：' + method))
+      }, timeoutMs)
+
+      this.directRequests.set(id, {
+        resolve: value => resolve(value as T),
+        reject,
+        timer,
+      })
+
+      this.send(this.extensionSocket!, {
+        id,
+        method,
+        ...(params ? { params } : {}),
+      })
+    })
   }
 
   handleClientMessage(socket: BridgeSocket, rawMessage: string): void {
@@ -82,6 +132,19 @@ export class XhsBridgeHub {
 
     const message = this.parseMessage(rawMessage)
     if (!message?.id) {
+      return
+    }
+
+    const direct = this.directRequests.get(message.id)
+    if (direct) {
+      clearTimeout(direct.timer)
+      this.directRequests.delete(message.id)
+      if (message.error) {
+        direct.reject(new Error(message.error))
+      }
+      else {
+        direct.resolve(message.result)
+      }
       return
     }
 

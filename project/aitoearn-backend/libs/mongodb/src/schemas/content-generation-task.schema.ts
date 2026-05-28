@@ -27,17 +27,20 @@ export class ContentGenerationTask extends WithTimestampSchema {
 
   @Prop({
     required: true,
+    type: String,
   })
   userId: string
 
   @Prop({
     required: false,
     index: true,
+    type: String,
   })
   sessionId?: string
 
   @Prop({
     required: false,
+    type: String,
   })
   title?: string
 
@@ -58,6 +61,7 @@ export class ContentGenerationTask extends WithTimestampSchema {
     required: true,
     enum: ContentGenerationTaskStatus,
     default: ContentGenerationTaskStatus.Running,
+    type: String,
   })
   status: ContentGenerationTaskStatus
 
@@ -65,17 +69,20 @@ export class ContentGenerationTask extends WithTimestampSchema {
     required: false,
     min: 1,
     max: 5,
+    type: Number,
   })
   rating?: number
 
   @Prop({
     required: false,
+    type: String,
   })
   ratingComment?: string
 
   @Prop({
     required: false,
     index: true,
+    type: String,
   })
   publicShareToken?: string
 

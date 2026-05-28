@@ -14,6 +14,7 @@ import { PromotionLedger, PromotionLedgerSchema } from './promotion-ledger.schem
 import { PromotionTask, PromotionTaskSchema } from './promotion-task.schema'
 import { ReplyCommentRecord, ReplyCommentRecordSchema } from './reply-comment-record.schema'
 import { ScriptTemplate, ScriptTemplateSchema } from './script-template.schema'
+import { AcquisitionContent, AcquisitionContentSchema } from './acquisition-content.schema'
 
 export * from './account.schema'
 export * from './account-ops-config.schema'
@@ -31,6 +32,7 @@ export * from './promotion-ledger.schema'
 export * from './promotion-task.schema'
 export * from './reply-comment-record.schema'
 export * from './script-template.schema'
+export * from './acquisition-content.schema'
 
 export const schemas = [
   { name: Account.name, schema: AccountSchema },
@@ -50,4 +52,5 @@ export const schemas = [
   { name: LeadActivityLog.name, schema: LeadActivityLogSchema },
   { name: PostSnapshot.name, schema: PostSnapshotSchema },
   { name: ScriptTemplate.name, schema: ScriptTemplateSchema },
+  { name: AcquisitionContent.name, schema: AcquisitionContentSchema },
 ] as const

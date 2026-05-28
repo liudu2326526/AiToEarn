@@ -430,6 +430,7 @@ export class AiLogSettlement {
   @Prop({
     required: true,
     enum: AiLogSettlementStatus,
+    type: Number,
   })
   status: AiLogSettlementStatus
 
@@ -476,46 +477,54 @@ export class AiLog extends WithTimestampSchema {
   @Prop({
     required: true,
     enum: UserType,
+    type: String,
   })
   userType: UserType
 
   @Prop({
     required: false,
     index: true,
+    type: String,
   })
   libraryId?: string
 
   @Prop({
     required: false,
     index: true,
+    type: String,
   })
   taskId?: string
 
   @Prop({
     required: true,
     enum: AiLogType,
+    type: String,
   })
   type: AiLogType
 
   @Prop({
     required: true,
+    type: String,
   })
   model: string
 
   @Prop({
     required: true,
     enum: AiLogChannel,
+    type: String,
   })
   channel: AiLogChannel
 
   @Prop({
     required: false,
+    type: String,
   })
   action?: string
 
   @Prop({
     required: true,
     enum: AiLogStatus,
+    type: Number,
   })
   status: AiLogStatus
 

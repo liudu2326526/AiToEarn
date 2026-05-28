@@ -14,6 +14,7 @@ import { ApiKeyRepository, MongodbModule, UserRepository, UserStatus } from '@yi
 import { RedlockModule } from '@yikart/redlock'
 import { config } from './config'
 import { AccountModule } from './core/account/account.module'
+import { AcquisitionModule } from './core/acquisition/acquisition.module'
 import { ApiKeyModule } from './core/api-key/api-key.module'
 import { AssetsModule } from './core/assets/assets.module'
 import { ChannelModule } from './core/channel/channel.module'
@@ -77,6 +78,7 @@ import { SensitiveWordModule } from './core/sensitive-word/sensitive-word.module
     AssetsModule,
     NotificationModule,
     AccountModule,
+    AcquisitionModule,
     UserModule,
     ContentModule,
     ChannelModule,

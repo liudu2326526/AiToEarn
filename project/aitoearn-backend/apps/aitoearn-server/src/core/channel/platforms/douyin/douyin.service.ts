@@ -123,10 +123,7 @@ export class DouyinService extends PlatformBaseService {
    * @returns
    */
   async getAccountAuthInfo(accountId: string) {
-    const data = await this.redisService.getJson<AccessToken>(
-      ChannelRedisKeys.accessToken('douyin', accountId),
-    )
-    return data
+    return await this.getOAuth2Credential(accountId)
   }
 
   /**
@@ -165,6 +162,7 @@ export class DouyinService extends PlatformBaseService {
         accessToken: accessTokenInfo.access_token,
         refreshToken: accessTokenInfo.refresh_token,
         accessTokenExpiresAt: accessTokenInfo.expires_in,
+        raw: JSON.stringify(accessTokenInfo),
       },
     )
     return cached && persistResult
@@ -312,14 +310,41 @@ export class DouyinService extends PlatformBaseService {
       if (!oauth2Credential) {
         return null
       }
+      const persisted = this.parsePersistedAccessToken(oauth2Credential.raw)
       credential = {
         access_token: oauth2Credential.accessToken,
         refresh_token: oauth2Credential.refreshToken,
         expires_in: oauth2Credential.accessTokenExpiresAt,
-        scopes: [],
+        open_id: persisted.open_id,
+        scope: persisted.scope,
+        scopes: persisted.scopes,
       }
     }
     return credential
+  }
+
+  private parsePersistedAccessToken(raw?: string): Pick<AccessToken, 'open_id' | 'scope' | 'scopes'> {
+    const empty = { scopes: [] }
+    if (!raw) return empty
+
+    try {
+      const parsed: unknown = JSON.parse(raw)
+      if (!parsed || typeof parsed !== 'object') return empty
+
+      const record = parsed as Record<string, unknown>
+      const scope = typeof record['scope'] === 'string' ? record['scope'] : undefined
+      const scopes = Array.isArray(record['scopes'])
+        ? record['scopes'].filter((item): item is string => typeof item === 'string')
+        : (scope || '').split(',').map(item => item.trim()).filter(Boolean)
+      return {
+        open_id: typeof record['open_id'] === 'string' ? record['open_id'] : undefined,
+        scope,
+        scopes,
+      }
+    }
+    catch {
+      return empty
+    }
   }
 
   /**

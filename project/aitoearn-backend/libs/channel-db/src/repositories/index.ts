@@ -14,6 +14,7 @@ import { PromotionLedgerRepository } from './promotion-ledger.repository'
 import { PromotionTaskRepository } from './promotion-task.repository'
 import { ReplyCommentRecordRepository } from './reply-comment-record.repository'
 import { ScriptTemplateRepository } from './script-template.repository'
+import { AcquisitionContentRepository } from './acquisition-content.repository'
 
 export * from './base.repository'
 export * from './account-ops-config.repository'
@@ -32,6 +33,7 @@ export * from './promotion-ledger.repository'
 export * from './promotion-task.repository'
 export * from './reply-comment-record.repository'
 export * from './script-template.repository'
+export * from './acquisition-content.repository'
 
 export const repositories = [
   PostMediaContainerRepository,
@@ -50,4 +52,5 @@ export const repositories = [
   LeadActivityLogRepository,
   PostSnapshotRepository,
   ScriptTemplateRepository,
+  AcquisitionContentRepository,
 ] as const

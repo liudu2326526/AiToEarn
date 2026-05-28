@@ -42,16 +42,17 @@ export class Asset extends WithTimestampSchema {
     required: true,
     enum: UserType,
     default: UserType.User,
+    type: String,
   })
   userType: UserType
 
-  @Prop({ required: true })
+  @Prop({ required: true, type: String })
   path: string
 
-  @Prop({ required: true, enum: AssetType })
+  @Prop({ required: true, enum: AssetType, type: String })
   type: AssetType
 
-  @Prop({ required: true, enum: AssetStatus, default: AssetStatus.Pending })
+  @Prop({ required: true, enum: AssetStatus, default: AssetStatus.Pending, type: String })
   status: AssetStatus
 
   @Prop()

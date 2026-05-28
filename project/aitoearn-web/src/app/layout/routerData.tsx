@@ -3,15 +3,15 @@
  * 包含导航项的图标、路径、翻译键等信息
  */
 import {
+  BarChart3,
   Bot,
-  ChartNoAxesCombined,
+  Database,
   History,
   Home,
-  Sparkles,
-  Store,
-  Target,
+  MessageSquareText,
+  SlidersHorizontal,
   Upload,
-  WalletCards,
+  UsersRound,
 } from 'lucide-react'
 
 export interface IRouterDataItem {
@@ -35,16 +35,28 @@ export const routerData: IRouterDataItem[] = [
     icon: <Home size={20} />,
   },
   {
-    name: 'AI Publish',
-    translationKey: 'aiSocial',
-    path: '/ai-social',
-    icon: <Sparkles size={20} />,
+    name: 'Work Data',
+    translationKey: 'acquisition.nav.workData',
+    path: '/work-data',
+    icon: <Database size={20} />,
   },
   {
-    name: 'Acquisition',
-    translationKey: 'header.acquisition',
-    path: '/acquisition',
-    icon: <Target size={20} />,
+    name: 'Lead Tracking',
+    translationKey: 'acquisition.nav.leads',
+    path: '/leads',
+    icon: <MessageSquareText size={20} />,
+  },
+  {
+    name: 'Operation Strategy',
+    translationKey: 'acquisition.nav.strategy',
+    path: '/operation-strategy',
+    icon: <SlidersHorizontal size={20} />,
+  },
+  {
+    name: 'Acquisition Dashboard',
+    translationKey: 'acquisition.nav.dashboard',
+    path: '/acquisition-dashboard',
+    icon: <BarChart3 size={20} />,
   },
   {
     name: 'Task History',
@@ -53,16 +65,10 @@ export const routerData: IRouterDataItem[] = [
     icon: <History size={20} />,
   },
   {
-    name: 'Task Square',
-    translationKey: 'taskSquare',
-    path: '/task-square',
-    icon: <Store size={20} />,
-  },
-  {
-    name: 'Publish',
-    translationKey: 'accounts',
-    path: '/accounts',
-    icon: <Upload size={20} />,
+    name: 'Account Management',
+    translationKey: 'accountManagement',
+    path: '/account-management',
+    icon: <UsersRound size={20} />,
   },
   // Tasks moved to notification panel
   {
@@ -72,16 +78,10 @@ export const routerData: IRouterDataItem[] = [
     icon: <Bot size={20} />,
   },
   {
-    name: 'Gold',
-    translationKey: 'gold',
-    path: '/gold',
-    icon: <WalletCards size={20} />,
-  },
-  {
-    name: 'XHS Data',
-    translationKey: 'xhsData',
-    path: '/xhs-data',
-    icon: <ChartNoAxesCombined size={20} />,
+    name: 'Publish Calendar',
+    translationKey: 'publishCalendar',
+    path: '/accounts',
+    icon: <Upload size={20} />,
   },
 ]
 

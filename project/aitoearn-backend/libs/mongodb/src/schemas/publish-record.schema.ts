@@ -26,6 +26,7 @@ export class PublishRecord extends WithTimestampSchema {
 
   @Prop({
     required: false,
+    type: String,
   })
   flowId?: string // 前端传入的流水ID
 
@@ -46,21 +47,25 @@ export class PublishRecord extends WithTimestampSchema {
   @Prop({
     required: true,
     enum: PublishType,
+    type: String,
   })
   type: PublishType
 
   @Prop({
     required: false,
+    type: String,
   })
   title?: string
 
   @Prop({
     required: false,
+    type: String,
   })
   desc?: string // 主要内容
 
   @Prop({
     required: false,
+    type: String,
   })
   accountId?: string
 
@@ -73,21 +78,25 @@ export class PublishRecord extends WithTimestampSchema {
 
   @Prop({
     required: true,
+    type: String,
   })
   accountType: AccountType
 
   @Prop({
     required: false,
+    type: String,
   })
   uid?: string
 
   @Prop({
     required: false,
+    type: String,
   })
   videoUrl?: string
 
   @Prop({
     required: false,
+    type: String,
   })
   coverUrl?: string
 
@@ -108,11 +117,13 @@ export class PublishRecord extends WithTimestampSchema {
     required: true,
     enum: PublishStatus,
     default: PublishStatus.WaitingForPublish,
+    type: Number,
   })
   status: PublishStatus
 
   @Prop({
     required: false,
+    type: String,
   })
   queueId?: string
 
@@ -136,6 +147,7 @@ export class PublishRecord extends WithTimestampSchema {
 
   @Prop({
     required: false,
+    type: String,
   })
   errorMsg?: string
 

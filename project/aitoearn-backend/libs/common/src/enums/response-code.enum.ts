@@ -161,6 +161,12 @@ export enum ResponseCode {
   // 18400-18499: tools（工具模块）
   QrCodeArtImageNotFound = 18400,
 
+  // 18600-18699: acquisition (获客模块)
+  AcquisitionContentNotFound = 18600,
+  StrategyTemplateNotFound = 18601,
+  HookTemplateNotFound = 18602,
+  ScriptTemplateNotFound = 18603,
+
   // ========================================
   // 19000-19099: api-key / relay
   // ========================================

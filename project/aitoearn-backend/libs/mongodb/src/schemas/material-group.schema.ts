@@ -17,6 +17,7 @@ export class MaterialGroup extends WithTimestampSchema {
   @Prop({
     required: true,
     index: true,
+    type: String,
   })
   userId: string
 
@@ -24,17 +25,20 @@ export class MaterialGroup extends WithTimestampSchema {
     required: true,
     index: true,
     default: UserType.User,
+    type: String,
   })
   userType: UserType
 
   @Prop({
     required: true,
     index: true,
+    type: String,
   })
   name: string
 
   @Prop({
     required: false,
+    type: String,
   })
   desc?: string
 
@@ -43,6 +47,7 @@ export class MaterialGroup extends WithTimestampSchema {
     required: true,
     index: true,
     default: false,
+    type: Boolean,
   })
   isDefault: boolean
 
@@ -56,7 +61,7 @@ export class MaterialGroup extends WithTimestampSchema {
   })
   platforms: AccountType[]
 
-  @Prop({ required: false, index: true })
+  @Prop({ required: false, index: true, type: String })
   libraryId?: string
 }
 

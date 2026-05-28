@@ -11,6 +11,14 @@ export class XhsBridgeService implements OnModuleInit, OnModuleDestroy {
   private readonly hub = new XhsBridgeHub()
   private server?: WebSocketServer
 
+  getStatus() {
+    return this.hub.getStatus()
+  }
+
+  async callExtension<T = unknown>(method: string, params?: Record<string, unknown>, timeoutMs?: number) {
+    return await this.hub.callExtension<T>(method, params, timeoutMs)
+  }
+
   onModuleInit(): void {
     this.server = new WebSocketServer({
       host: '127.0.0.1',

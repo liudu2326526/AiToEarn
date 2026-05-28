@@ -19,10 +19,12 @@ export function selectConfig<
     load: fileLoader({
       absolutePath: resolve(
         process.cwd(),
-        program
-          .requiredOption('-c --config <config>', 'config path')
-          .parse(process.argv)
-          .opts()['config'],
+        process.env['CONFIG_PATH'] || (process.env['NODE_ENV'] === 'test'
+          ? 'apps/aitoearn-server/config/local.config.js'
+          : program
+            .requiredOption('-c --config <config>', 'config path')
+            .parse(process.argv)
+            .opts()['config']),
       ),
     }),
   })

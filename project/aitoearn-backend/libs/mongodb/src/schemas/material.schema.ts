@@ -25,13 +25,13 @@ export enum MaterialSource {
 /** 品牌关联信息 */
 @Schema({ _id: false })
 export class MaterialBrandInfo {
-  @Prop({ required: true, index: true })
+  @Prop({ required: true, index: true, type: String })
   libraryId: string
 
-  @Prop({ required: true })
+  @Prop({ required: true, type: String })
   placeId: string
 
-  @Prop({ required: false })
+  @Prop({ required: false, type: String })
   photoReference?: string
 }
 
@@ -43,11 +43,13 @@ export class MaterialBrandInfo {
 export class MaterialMedia {
   @Prop({
     required: true,
+    type: String,
   })
   url: string
 
   @Prop({
     required: false,
+    type: String,
   })
   thumbUrl?: string // 缩略图
 
@@ -58,17 +60,20 @@ export class MaterialMedia {
 
   @Prop({
     required: true,
+    type: String,
   })
   type: MediaType
 
   @Prop({
     required: false,
     default: '',
+    type: String,
   })
   content?: string
 
   @Prop({
     required: false,
+    type: String,
   })
   mediaId?: string
 }
@@ -79,6 +84,7 @@ export class Material extends WithTimestampSchema {
   @Prop({
     required: true,
     index: true,
+    type: String,
   })
   userId: string
 
@@ -86,18 +92,21 @@ export class Material extends WithTimestampSchema {
     required: true,
     index: true,
     default: UserType.User,
+    type: String,
   })
   userType: UserType
 
   @Prop({
     required: true,
     index: true,
+    type: String,
   })
   groupId: string // 所属组ID
 
   @Prop({
     required: false,
     index: true,
+    type: String,
   })
   taskId?: string // 使用生成的任务ID
 
@@ -107,6 +116,7 @@ export class Material extends WithTimestampSchema {
     enum: MaterialSource,
     default: MaterialSource.UPLOAD,
     index: true,
+    type: String,
   })
   source: MaterialSource
 
@@ -118,11 +128,13 @@ export class Material extends WithTimestampSchema {
     required: true,
     enum: MaterialType,
     index: true,
+    type: String,
   })
   type: MaterialType
 
   @Prop({
     required: false,
+    type: String,
   })
   coverUrl?: string
 
@@ -135,11 +147,13 @@ export class Material extends WithTimestampSchema {
 
   @Prop({
     required: false,
+    type: String,
   })
   title?: string
 
   @Prop({
     required: false,
+    type: String,
   })
   desc?: string
 
@@ -162,12 +176,14 @@ export class Material extends WithTimestampSchema {
     required: true,
     enum: MaterialStatus,
     default: MaterialStatus.SUCCESS,
+    type: Number,
   })
   status: MaterialStatus
 
   @Prop({
     required: false,
     default: '',
+    type: String,
   })
   message?: string
 
@@ -194,6 +210,7 @@ export class Material extends WithTimestampSchema {
   // 模型
   @Prop({
     required: false,
+    type: String,
   })
   model?: string
 

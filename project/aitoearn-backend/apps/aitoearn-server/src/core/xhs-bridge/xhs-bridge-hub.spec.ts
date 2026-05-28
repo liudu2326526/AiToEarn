@@ -56,4 +56,18 @@ describe('XhsBridgeHub', () => {
     expect(client.sent).toEqual([{ id: 'client-1', result: 2 }])
     vi.useRealTimers()
   })
+
+  it('allows backend services to call the connected extension directly', async () => {
+    const hub = new XhsBridgeHub({ requestTimeoutMs: 1000 })
+    const extension = new FakeSocket()
+    hub.connectExtension(extension)
+
+    const promise = hub.callExtension('evaluate', { expression: '1 + 1' })
+    const sent = extension.sent[0] as Record<string, unknown>
+    expect(sent.method).toBe('evaluate')
+    expect(sent.params).toEqual({ expression: '1 + 1' })
+
+    hub.handleExtensionMessage(extension, JSON.stringify({ id: sent.id, result: 2 }))
+    await expect(promise).resolves.toBe(2)
+  })
 })

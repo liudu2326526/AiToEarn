@@ -494,6 +494,24 @@ export const messages: Record<ResponseCode, Record<Locale, MessageValue>> = {
     'zh-CN': '二维码艺术图未找到',
   },
 
+  // 18600 (acquisition)
+  [ResponseCode.AcquisitionContentNotFound]: {
+    'en-US': 'Acquisition content not found',
+    'zh-CN': '获客内容未找到',
+  },
+  [ResponseCode.StrategyTemplateNotFound]: {
+    'en-US': 'Strategy template not found',
+    'zh-CN': '策略模板未找到',
+  },
+  [ResponseCode.HookTemplateNotFound]: {
+    'en-US': 'Hook template not found',
+    'zh-CN': '钩子模板未找到',
+  },
+  [ResponseCode.ScriptTemplateNotFound]: {
+    'en-US': 'Script template not found',
+    'zh-CN': '话术模板未找到',
+  },
+
   // 19000 (api-key / relay)
   [ResponseCode.ApiKeyInvalid]: {
     'en-US': 'Invalid API key',

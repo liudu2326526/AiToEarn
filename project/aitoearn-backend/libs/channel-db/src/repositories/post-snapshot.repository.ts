@@ -12,4 +12,21 @@ export class PostSnapshotRepository extends BaseRepository<PostSnapshot> {
   ) {
     super(postSnapshotModel)
   }
+
+  async createSnapshot(data: Partial<PostSnapshot> & {
+    platform: string
+    accountId: string
+    postId: string
+    fetchedAt: Date
+    fetchDate: string
+  }) {
+    return await this.create(data)
+  }
+
+  async listByPost(accountId: string, platform: string, postId: string, limit = 20) {
+    return await this.find(
+      { accountId, platform, postId },
+      { sort: { fetchedAt: -1 }, limit },
+    )
+  }
 }

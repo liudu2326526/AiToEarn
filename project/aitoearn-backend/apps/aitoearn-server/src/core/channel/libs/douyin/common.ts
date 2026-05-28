@@ -55,6 +55,29 @@ export interface DouyinUserVideoListResponse {
   description?: string
 }
 
+export interface DouyinCommentListItem {
+  comment_id?: string
+  content?: string
+  create_time?: number
+  digg_count?: number
+  reply_comment_total?: number
+  top?: boolean
+  user?: {
+    nickname?: string
+    avatar?: string
+    open_id?: string
+  }
+}
+
+export interface DouyinCommentListResponse {
+  comments?: DouyinCommentListItem[]
+  list?: DouyinCommentListItem[]
+  cursor?: number
+  has_more?: boolean
+  error_code?: number
+  description?: string
+}
+
 export interface DouyinMiniAppVideoStatistics {
   share_count: number
   forward_count: number

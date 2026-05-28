@@ -76,20 +76,22 @@ export class UserVipInfo {
   @Prop({
     required: true,
     enum: VipTier,
+    type: Number,
   })
   tier: VipTier
 
-  @Prop({ required: true })
+  @Prop({ required: true, type: Date })
   expireAt: Date
 
   @Prop({
     required: true,
     enum: VipStatus,
     default: VipStatus.Active,
+    type: Number,
   })
   status: VipStatus
 
-  @Prop({ required: true })
+  @Prop({ required: true, type: Date })
   startAt: Date
 }
 
@@ -156,35 +158,41 @@ export class User extends WithTimestampSchema {
   @Prop({
     required: true,
     default: '',
+    type: String,
   })
   name: string
 
   @Prop({
     required: false,
     index: true,
+    type: String,
   })
   mail: string
 
   @Prop({
     required: false,
+    type: String,
   })
   avatar?: string
 
   @Prop({
     required: false,
     index: true,
+    type: String,
   })
   phone?: string
 
   @Prop({
     required: false,
     select: false,
+    type: String,
   })
   password?: string
 
   @Prop({
     required: false,
     select: false,
+    type: String,
   })
   salt?: string
 
@@ -192,6 +200,7 @@ export class User extends WithTimestampSchema {
     required: true,
     enum: UserStatus,
     default: UserStatus.OPEN,
+    type: Number,
   })
   status: UserStatus
 
@@ -200,19 +209,20 @@ export class User extends WithTimestampSchema {
     required: true,
     default: false,
     index: true,
+    type: Boolean,
   })
   isDelete: boolean
 
-  @Prop({ required: false })
+  @Prop({ required: false, type: String })
   wxOpenid?: string
 
-  @Prop({ required: false })
+  @Prop({ required: false, type: String })
   wxUnionid?: string
 
-  @Prop({ required: false, index: true })
+  @Prop({ required: false, index: true, type: String })
   douyinUnionid?: string // 抖音UnionID
 
-  @Prop({ required: false, index: true })
+  @Prop({ required: false, index: true, type: String })
   douyinMiniAppOpenid?: string // 抖音小程序OpenID
 
   @Prop({ type: Object, required: false, default: {} })
@@ -264,10 +274,10 @@ export class User extends WithTimestampSchema {
   @Prop({ type: String, required: false, default: 'en-US' })
   locale?: string // 用户语言偏好 (en-US | zh-CN)
 
-  @Prop({ required: false, index: true })
+  @Prop({ required: false, index: true, type: String })
   placeId?: string
 
-  @Prop({ required: false, index: true })
+  @Prop({ required: false, index: true, type: String })
   libraryId?: string
 }
 

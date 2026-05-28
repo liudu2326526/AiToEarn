@@ -16,6 +16,7 @@ export class OAuth2Credential extends WithTimestampSchema {
   @Prop({
     required: true,
     enum: AccountType,
+    type: String,
   })
   platform: AccountType
 

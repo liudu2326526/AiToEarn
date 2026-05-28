@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common'
 import { QueueService } from '@yikart/aitoearn-queue'
 import { PostCategory, PostMediaStatus, PostSubCategory } from '@yikart/channel-db'
+import { AccountType } from '@yikart/common'
 import { PublishRecord, PublishStatus } from '@yikart/mongodb'
 import { PublishRecordService } from '../../../publish-record/publish-record.service'
 import { MEDIA_PROCESSING_POLL_ATTEMPTS, MEDIA_PROCESSING_POLL_INTERVAL_MS } from '../constant'
@@ -300,6 +301,23 @@ export abstract class PublishService {
       newData.workLink = data.workLink
     }
     await this.publishRecordService.completeById(newData, dataId, data ? { workLink: data.workLink } : undefined)
+    const acquisitionPlatform = this.toAcquisitionPlatform(newData.accountType)
+    if (acquisitionPlatform && newData.accountId && newData.userId && newData.workLink) {
+      await this.queueService.addAcquisitionPostBackfillJob({
+        userId: newData.userId,
+        accountId: newData.accountId,
+        platform: acquisitionPlatform,
+        postId: dataId,
+        postUrl: newData.workLink,
+      })
+    }
+  }
+
+  private toAcquisitionPlatform(accountType: unknown): 'xhs' | 'douyin' | 'kwai' | null {
+    if (accountType === AccountType.Xhs || accountType === 'xhs') return 'xhs'
+    if (accountType === AccountType.Douyin || accountType === 'douyin') return 'douyin'
+    if (accountType === AccountType.KWAI || accountType === 'KWAI' || accountType === 'kwai') return 'kwai'
+    return null
   }
 
   /**

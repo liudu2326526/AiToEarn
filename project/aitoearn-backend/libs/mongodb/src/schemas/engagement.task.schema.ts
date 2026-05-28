@@ -29,33 +29,39 @@ export class EngagementTask extends WithTimestampSchema {
   id: string
   @Prop({
     required: true,
+    type: String,
   })
   accountId: string
 
   @Prop({
     required: true,
+    type: String,
   })
   userId: string
 
   @Prop({
     required: true,
+    type: String,
   })
   postId: string
 
   @Prop({
     required: true,
+    type: String,
   })
   platform: string
 
   @Prop({
     required: true,
     default: '',
+    type: String,
   })
   model: string
 
   @Prop({
     required: false,
     default: '',
+    type: String,
   })
   prompt: string
 
@@ -63,6 +69,7 @@ export class EngagementTask extends WithTimestampSchema {
     required: true,
     enum: EngagementTaskType,
     default: EngagementTaskType.REPLY,
+    type: String,
   })
   taskType: EngagementTaskType
 
@@ -70,6 +77,7 @@ export class EngagementTask extends WithTimestampSchema {
     required: true,
     enum: EngagementTargetScope,
     default: EngagementTargetScope.ALL,
+    type: String,
   })
   targetScope: EngagementTargetScope
 
@@ -83,6 +91,7 @@ export class EngagementTask extends WithTimestampSchema {
     required: true,
     enum: EngagementTaskStatus,
     default: EngagementTaskStatus.CREATED,
+    type: String,
   })
   status: EngagementTaskStatus
 
@@ -118,38 +127,45 @@ export class EngagementSubTask extends WithTimestampSchema {
 
   @Prop({
     required: true,
+    type: String,
   })
   accountId: string
 
   @Prop({
     required: true,
+    type: String,
   })
   userId: string
 
   @Prop({
     required: true,
+    type: String,
   })
   postId: string
 
   @Prop({
     required: true,
+    type: String,
   })
   commentId: string
 
   @Prop({
     required: true,
     default: '',
+    type: String,
   })
   commentContent: string
 
   @Prop({
     required: false,
     default: '',
+    type: String,
   })
   replyContent: string
 
   @Prop({
     required: true,
+    type: String,
   })
   platform: string
 
@@ -157,6 +173,7 @@ export class EngagementSubTask extends WithTimestampSchema {
     required: true,
     enum: EngagementTaskStatus,
     default: EngagementTaskStatus.CREATED,
+    type: String,
   })
   status: EngagementTaskStatus
 }

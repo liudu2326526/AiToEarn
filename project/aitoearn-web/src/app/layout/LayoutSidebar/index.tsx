@@ -16,7 +16,6 @@ import { useNotification } from '@/hooks/useNotification'
 import { cn } from '@/lib/utils'
 import { useUserStore } from '@/store/user'
 import { BottomSection, LogoSection, NavSection, UserDropdownMenu } from './components'
-import { MyChannelsEntry } from './components/BottomSection/MyChannelsEntry'
 
 /**
  * 侧边栏主组件
@@ -71,11 +70,6 @@ function LayoutSidebar() {
 
         {/* 底部固定区域 - 不随滚动 */}
         <div className="flex-shrink-0">
-          {/* 我的频道入口 */}
-          <div className="pb-1 flex flex-1">
-            <MyChannelsEntry collapsed={collapsed} />
-          </div>
-
           {/* 底部功能区 */}
           <BottomSection collapsed={collapsed} onOpenSettings={openSettings} />
 

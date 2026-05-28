@@ -8,57 +8,59 @@ import { WithTimestampSchema } from './timestamp.schema'
 export class PortraitAsset extends WithTimestampSchema {
   id: string
 
-  @Prop({ required: true })
+  @Prop({ required: true, type: String })
   userId: string
 
   @Prop({
     required: true,
     enum: UserType,
     default: UserType.User,
+    type: String,
   })
   userType: UserType
 
-  @Prop()
+  @Prop({ type: String })
   sourceAssetId?: string
 
-  @Prop({ required: true })
+  @Prop({ required: true, type: String })
   sourceUrl: string
 
-  @Prop()
+  @Prop({ type: String })
   filename?: string
 
-  @Prop()
+  @Prop({ type: String })
   mimeType?: string
 
-  @Prop()
+  @Prop({ type: Number })
   size?: number
 
-  @Prop()
+  @Prop({ type: Number })
   width?: number
 
-  @Prop()
+  @Prop({ type: Number })
   height?: number
 
-  @Prop()
+  @Prop({ type: String })
   projectName?: string
 
-  @Prop()
+  @Prop({ type: String })
   volcAssetGroupId?: string
 
-  @Prop()
+  @Prop({ type: String })
   volcAssetId?: string
 
-  @Prop()
+  @Prop({ type: String })
   assetUri?: string
 
   @Prop({
     required: true,
     enum: PortraitAssetStatus,
     default: PortraitAssetStatus.Pending,
+    type: String,
   })
   status: PortraitAssetStatus
 
-  @Prop()
+  @Prop({ type: String })
   failureReason?: string
 
   @Prop({ type: Object })

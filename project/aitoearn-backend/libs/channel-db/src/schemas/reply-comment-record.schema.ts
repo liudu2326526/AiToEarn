@@ -38,6 +38,7 @@ export class ReplyCommentRecord extends BaseTemp {
   @Prop({
     required: true,
     enum: AccountType,
+    type: String,
   })
   type: AccountType
 

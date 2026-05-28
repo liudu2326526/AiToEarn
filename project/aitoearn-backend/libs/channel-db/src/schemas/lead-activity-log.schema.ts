@@ -17,7 +17,7 @@ export class LeadActivityLog extends BaseTemp {
   @Prop({ required: true, index: true, type: String })
   leadId: string
 
-  @Prop({ required: true, enum: LeadActivityAction, index: true })
+  @Prop({ required: true, enum: LeadActivityAction, index: true, type: String })
   action: LeadActivityAction
 
   @Prop({ required: true, index: true, type: String })

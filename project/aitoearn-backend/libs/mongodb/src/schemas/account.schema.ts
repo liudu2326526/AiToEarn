@@ -34,18 +34,21 @@ export class Account extends WithTimestampSchema {
     required: true,
     enum: AccountType,
     index: true,
+    type: String,
   })
   type: AccountType
 
   @Prop({
     required: true,
     index: true,
+    type: String,
   })
   uid: string
 
   @Prop({
     required: false,
     index: true,
+    type: String,
   })
   account: string
 
@@ -69,6 +72,7 @@ export class Account extends WithTimestampSchema {
   @Prop({
     required: false,
     enum: ClientType,
+    type: String,
   })
   clientType?: ClientType
 
@@ -158,6 +162,7 @@ export class Account extends WithTimestampSchema {
     required: true,
     default: AccountStatus.NORMAL,
     index: true,
+    type: Number,
   })
   status: AccountStatus
 

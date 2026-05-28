@@ -2,6 +2,16 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose'
 import { DEFAULT_SCHEMA_OPTIONS } from '../channel-db.constants'
 import { BaseTemp } from './time.tamp'
 
+export enum CommentFetchCapabilityStatus {
+  NotConfigured = 'not_configured',
+  PendingAuthorization = 'pending_authorization',
+  PermissionRequired = 'permission_required',
+  Ready = 'ready',
+  Failed = 'failed',
+  ManualRequired = 'manual_required',
+  PendingConfirmation = 'pending_confirmation',
+}
+
 @Schema({ ...DEFAULT_SCHEMA_OPTIONS, collection: 'account_ops_config' })
 export class AccountOpsConfig extends BaseTemp {
   id: string
@@ -30,8 +40,41 @@ export class AccountOpsConfig extends BaseTemp {
   @Prop({ type: Boolean, default: true })
   enableCommentFetch: boolean
 
+  @Prop({ type: Number, default: 10 })
+  dailyWechatGuideLimit: number
+
+  @Prop({ type: [String], default: [] })
+  enabledScriptSceneIds: string[]
+
+  @Prop({ type: [String], default: [] })
+  preferredHookTemplateIds: string[]
+
+  @Prop({ type: String, default: 'friendly' })
+  replyTone: 'friendly' | 'professional' | 'promotion' | 'restrained'
+
+  @Prop({ type: Boolean, default: true })
+  blockPublicContactInfo: boolean
+
   @Prop({ type: [String], default: [] })
   sensitiveWords: string[]
+
+  @Prop({
+    required: true,
+    enum: CommentFetchCapabilityStatus,
+    default: CommentFetchCapabilityStatus.NotConfigured,
+    index: true,
+    type: String,
+  })
+  commentFetchStatus: CommentFetchCapabilityStatus
+
+  @Prop({ type: String, default: '' })
+  commentFetchStatusReason: string
+
+  @Prop({ type: Date, default: null })
+  commentFetchCheckedAt?: Date
+
+  @Prop({ type: Object, default: {} })
+  commentFetchMeta: Record<string, unknown>
 }
 
 export const AccountOpsConfigSchema = SchemaFactory.createForClass(AccountOpsConfig)

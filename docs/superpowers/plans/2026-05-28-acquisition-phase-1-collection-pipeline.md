@@ -70,8 +70,8 @@
 |---|---|
 | `project/aitoearn-web/src/api/acquisition.ts` | Client API wrappers for status and manual fetch. |
 | `project/aitoearn-web/src/app/[lng]/acquisition/acquisitionPageCore.tsx` | Add status cards and manual work-link fetch panel to Phase 0 shell. |
-| `project/aitoearn-web/src/app/[lng]/acquisition/components/CommentCapabilityCards.tsx` | Platform/account capability summary cards. |
-| `project/aitoearn-web/src/app/[lng]/acquisition/components/WorkFetchPanel.tsx` | Work link input, fetch action, and fetch result summary. |
+| `project/aitoearn-web/src/app/[lng]/acquisition/components/CommentCapabilityCards/index.tsx` | Platform/account capability summary cards. |
+| `project/aitoearn-web/src/app/[lng]/acquisition/components/WorkFetchPanel/index.tsx` | Work link input, fetch action, and fetch result summary. |
 
 ---
 
@@ -482,25 +482,26 @@ export interface AcquisitionFetchResult {
 ```ts
 import { createZodDto } from '@yikart/common'
 import { z } from 'zod'
-import { AcquisitionPlatform } from './acquisition.constants'
 
-export const acquisitionPlatformSchema = z.nativeEnum(AcquisitionPlatform)
+export const acquisitionPlatformSchema = z
+  .enum(['xhs', 'douyin', 'kwai'])
+  .describe('采集平台')
 
 export const fetchWorkSchema = z.object({
-  accountId: z.string().min(1),
+  accountId: z.string().min(1).describe('平台账号 ID'),
   platform: acquisitionPlatformSchema,
-  postUrl: z.string().url(),
-  postId: z.string().optional(),
-  cursor: z.string().optional(),
+  postUrl: z.string().url().describe('作品链接'),
+  postId: z.string().optional().describe('平台作品 ID，无法从链接稳定解析时由前端或发布回填传入'),
+  cursor: z.string().optional().describe('评论分页游标'),
 })
 
 export const enqueueCommentFetchSchema = fetchWorkSchema.extend({
-  fetchBatch: z.string().optional(),
+  fetchBatch: z.string().optional().describe('采集批次 ID，不传则后端生成'),
 })
 
 export const capabilityStatusQuerySchema = z.object({
-  accountId: z.string().optional(),
-  platform: acquisitionPlatformSchema.optional(),
+  accountId: z.string().optional().describe('平台账号 ID'),
+  platform: acquisitionPlatformSchema.optional().describe('采集平台'),
 })
 
 export class FetchWorkDto extends createZodDto(fetchWorkSchema) {}
@@ -849,16 +850,431 @@ Expected: tests pass.
 
 ---
 
+### Task 5A: Complete XHS Real Comment DOM Capture (Phase 1 Remaining)
+
+**Why this task exists:**
+
+The current Phase 1 implementation can connect to the XHS Bridge, open an XHS note page, and persist the post snapshot, but it can still return `ready / postSaved=true / commentsSaved=0` even when the page visibly contains comments. The observed live page had `.comment-item` nodes and text such as `共 591 条评论`, while the current extractor initializes `comments: []` and only extracts note metadata. This is a Phase 1 collection gap, not a Phase 2/3 task.
+
+**Files:**
+- Modify: `project/aitoearn-backend/apps/aitoearn-server/src/core/acquisition/providers/xhs/xhs-extractors.ts`
+- Modify: `project/aitoearn-backend/apps/aitoearn-server/src/core/acquisition/providers/xhs/xhs-bridge-acquisition.provider.ts`
+- Create or update: `project/aitoearn-backend/apps/aitoearn-server/src/core/acquisition/providers/xhs/xhs-bridge-acquisition.provider.spec.ts`
+- Optional if extension command compatibility changes: `project/aitoearn-extension/xhs-bridge/background.js`
+
+- [ ] **Step 1: Add a failing provider test for DOM-captured comments**
+
+Create or extend `xhs-bridge-acquisition.provider.spec.ts` with a test where the Bridge returns the same shape that the DOM extractor must produce:
+
+```ts
+import { describe, expect, it, vi } from 'vitest'
+import { AcquisitionCapabilityStatus, AcquisitionDataSource } from '../../acquisition.constants'
+import { XhsBridgeAcquisitionProvider } from './xhs-bridge-acquisition.provider'
+
+describe('XhsBridgeAcquisitionProvider real comment capture', () => {
+  it('normalizes comments captured from XHS DOM comment items', async () => {
+    const xhsBridgeService = {
+      getStatus: vi.fn(() => ({ extensionConnected: true })),
+      callExtension: vi.fn()
+        .mockResolvedValueOnce({ tabId: 1 })
+        .mockResolvedValueOnce({ loaded: true })
+        .mockResolvedValueOnce({ stable: true })
+        .mockResolvedValueOnce(JSON.stringify({
+          location: 'https://www.xiaohongshu.com/explore/note-1?xsec_token=token-1',
+          note: {
+            title: '德比斯你收敛一点，你看看第二名多矜持！！',
+            cover: 'https://example.com/cover.jpg',
+            commentCount: 591,
+          },
+          comments: [
+            {
+              id: 'dom:note-1:0',
+              userName: '王子',
+              userAvatar: '',
+              content: '事实就是张雪现在的车队叫埃文兄弟车队',
+              likeCount: 420,
+              ipLocation: '江西',
+              commentedAtText: '05-19',
+              xsecToken: 'token-1',
+              parentCommentId: '',
+            },
+            {
+              id: 'dom:note-1:1',
+              userName: '赵金贵',
+              userAvatar: '',
+              content: '49年入国军',
+              likeCount: 321,
+              ipLocation: '北京',
+              commentedAtText: '05-19',
+              xsecToken: 'token-1',
+              parentCommentId: 'dom:note-1:0',
+            },
+          ],
+          hasMore: true,
+        })),
+    }
+
+    const provider = new XhsBridgeAcquisitionProvider(xhsBridgeService as any)
+    const result = await provider.fetchWorkAndComments({
+      userId: 'user-1',
+      platform: 'xhs',
+      accountId: 'account-1',
+      postId: '',
+      postUrl: 'https://www.xiaohongshu.com/explore/note-1?xsec_token=token-1',
+      fetchBatch: 'batch-1',
+    } as any)
+
+    expect(result.capabilityStatus).toBe(AcquisitionCapabilityStatus.Ready)
+    expect(result.post?.title).toContain('德比斯')
+    expect(result.post?.metrics.normalized.commentCount).toBe(591)
+    expect(result.comments).toHaveLength(2)
+    expect(result.comments[0]).toEqual(expect.objectContaining({
+      commentId: 'dom:note-1:0',
+      userName: '王子',
+      content: '事实就是张雪现在的车队叫埃文兄弟车队',
+      likeCount: 420,
+      ipLocation: '江西',
+      xsecToken: 'token-1',
+      dataSource: AcquisitionDataSource.XhsBridgeCapture,
+    }))
+    expect(result.comments[1]).toEqual(expect.objectContaining({
+      parentCommentId: 'dom:note-1:0',
+      userName: '赵金贵',
+      content: '49年入国军',
+    }))
+  })
+})
+```
+
+Run:
+
+```bash
+cd project/aitoearn-backend
+pnpm exec vitest run apps/aitoearn-server/src/core/acquisition/providers/xhs/xhs-bridge-acquisition.provider.spec.ts
+```
+
+Expected: FAIL until the provider accepts DOM-captured `comments[]` fields and maps `commentedAtText` safely.
+
+- [ ] **Step 2: Replace the placeholder extractor with real DOM capture**
+
+Update `xhs-extractors.ts` so the browser-evaluated script extracts comment rows from the actual rendered page. Keep it read-only: no private APIs, no localStorage/cookie inspection, and no mutation except scrolling/clicking expand controls in the separate expand script.
+
+```ts
+export const XHS_EXPAND_COMMENTS_SCRIPT = `
+(async () => {
+  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+  const expandTexts = ['查看更多回复', '展开更多回复', '更多回复', '展开'];
+  let clicked = 0;
+
+  for (let round = 0; round < 3; round += 1) {
+    const controls = Array.from(document.querySelectorAll('button, span, div'));
+    for (const el of controls) {
+      const text = (el.textContent || '').trim();
+      if (text && expandTexts.some(item => text.includes(item))) {
+        el.click();
+        clicked += 1;
+      }
+    }
+    const scroller = document.querySelector('.note-scroller') || document.scrollingElement || document.documentElement;
+    scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'instant' });
+    await sleep(800);
+  }
+
+  return { clicked };
+})()
+`
+
+export const XHS_CAPTURE_NOTE_STATE_EXPRESSION = `
+(() => {
+  const clean = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+  const getXsecToken = () => {
+    try {
+      return new URL(window.location.href).searchParams.get('xsec_token') || '';
+    }
+    catch {
+      return '';
+    }
+  };
+  const parseLikeCount = (text) => {
+    const matches = String(text || '').match(/\\d+(?:\\.\\d+)?\\s*w?|\\d+(?:\\.\\d+)?\\s*万?/gi) || [];
+    const raw = matches[matches.length - 1] || '0';
+    const numeric = Number(raw.replace(/[^\\d.]/g, ''));
+    if (!Number.isFinite(numeric)) return 0;
+    return /w|万/i.test(raw) ? Math.round(numeric * 10000) : Math.round(numeric);
+  };
+  const parseCommentText = (el) => {
+    const lines = String(el.innerText || el.textContent || '')
+      .split('\\n')
+      .map(item => item.trim())
+      .filter(Boolean)
+      .filter(item => !['回复', '查看更多回复', '展开更多回复'].includes(item));
+
+    const userName = lines[0] || '';
+    const metaIndex = lines.findIndex(item => /(?:\\d{2}-\\d{2}|\\d+天前|昨天|今天|北京|上海|广东|浙江|江苏|江西|山东|河南|四川|福建|湖北|湖南|重庆|天津|河北|山西|陕西|辽宁|吉林|黑龙江|安徽|云南|贵州|广西|海南|甘肃|青海|宁夏|新疆|西藏|内蒙古)/.test(item));
+    const contentLines = lines.slice(1, metaIndex > 1 ? metaIndex : lines.length);
+    const metaText = metaIndex >= 0 ? lines[metaIndex] : '';
+
+    return {
+      userName,
+      content: clean(contentLines.join(' ')),
+      metaText,
+      likeCount: parseLikeCount(lines.join(' ')),
+    };
+  };
+  const parseMeta = (metaText) => {
+    const dateMatch = String(metaText || '').match(/\\d{2}-\\d{2}|\\d+天前|昨天|今天/);
+    const ipLocation = clean(String(metaText || '').replace(dateMatch?.[0] || '', ''));
+    return {
+      commentedAtText: dateMatch?.[0] || '',
+      ipLocation,
+    };
+  };
+  const noteId = window.location.pathname.match(/(?:explore|discovery\\/item)\\/([^/?#]+)/)?.[1] || '';
+  const xsecToken = getXsecToken();
+  const title = document.querySelector('meta[property="og:title"]')?.getAttribute('content')
+    || document.querySelector('title')?.textContent
+    || '';
+  const cover = document.querySelector('meta[property="og:image"]')?.getAttribute('content') || '';
+  const commentCountText = document.querySelector('.comments-el, .comments-container')?.textContent || '';
+  const commentCountMatch = commentCountText.match(/共\\s*(\\d+)\\s*条评论/);
+  const commentCount = commentCountMatch ? Number(commentCountMatch[1]) : 0;
+
+  const commentNodes = Array.from(document.querySelectorAll('.comment-item'));
+  const comments = commentNodes.map((el, index) => {
+    const parsed = parseCommentText(el);
+    const meta = parseMeta(parsed.metaText);
+    const isSub = String(el.className || '').includes('comment-item-sub');
+    const parent = isSub ? el.closest('.parent-comment')?.querySelector('.comment-item:not(.comment-item-sub)') : null;
+    const parentIndex = parent ? commentNodes.indexOf(parent) : -1;
+
+    return {
+      id: el.getAttribute('data-comment-id') || 'dom:' + noteId + ':' + index,
+      parentCommentId: parentIndex >= 0 ? 'dom:' + noteId + ':' + parentIndex : '',
+      userName: parsed.userName,
+      userAvatar: el.querySelector('img')?.getAttribute('src') || '',
+      content: parsed.content,
+      likeCount: parsed.likeCount,
+      ipLocation: meta.ipLocation,
+      commentedAtText: meta.commentedAtText,
+      xsecToken,
+    };
+  }).filter(item => item.userName && item.content);
+
+  return JSON.stringify({
+    location: window.location.href,
+    note: { title: clean(title), cover, commentCount },
+    comments,
+    hasMore: Boolean(document.body.innerText.includes('查看更多评论') || document.body.innerText.includes('正在加载')),
+  });
+})()
+`
+```
+
+- [ ] **Step 3: Update provider normalization for DOM-captured comments**
+
+Update `XhsBridgeAcquisitionProvider` so it:
+
+- calls `XHS_EXPAND_COMMENTS_SCRIPT` before `XHS_CAPTURE_NOTE_STATE_EXPRESSION`;
+- accepts `state.note.commentCount` as normalized post metric;
+- maps DOM-captured comment fields (`userName`, `userAvatar`, `commentedAtText`, `parentCommentId`) as well as API-like fields;
+- keeps `xsecToken` from each comment first, then falls back to the note URL token;
+- creates deterministic fallback comment IDs only when no platform/DOM id exists.
+
+The comment normalizer must support this mapping:
+
+```ts
+private normalizeComments(request: AcquisitionFetchRequest, comments: unknown[], postId: string): NormalizedCommentSnapshot[] {
+  const fallbackXsecToken = this.extractXsecToken(request.postUrl)
+  return comments.map((item, index) => {
+    const comment = item as XhsCommentLike & {
+      userName?: string
+      userAvatar?: string
+      likeCount?: number
+      ipLocation?: string
+      commentedAtText?: string
+      parentCommentId?: string
+    }
+    return {
+      platform: AcquisitionPlatform.Xhs,
+      accountId: request.accountId,
+      postId,
+      commentId: comment.id || comment.comment_id || \`dom:\${postId}:\${index}\`,
+      parentCommentId: comment.parentCommentId || '',
+      userName: comment.userName || comment.user?.nickname || comment.user_info?.nickname || '',
+      userAvatar: comment.userAvatar || comment.user?.avatar || comment.user_info?.image || '',
+      content: comment.content || comment.text || '',
+      likeCount: Number(comment.likeCount ?? comment.like_count ?? comment.liked_count ?? 0),
+      ipLocation: comment.ipLocation || comment.ip_location || '',
+      xsecToken: comment.xsec_token || comment.xsecToken || fallbackXsecToken,
+      commentedAt: this.toDate(comment.create_time) || this.toXhsRelativeDate(comment.commentedAtText),
+      fetchBatch: request.fetchBatch || '',
+      dataSource: AcquisitionDataSource.XhsBridgeCapture,
+    }
+  }).filter(comment => comment.userName && comment.content)
+}
+```
+
+- [ ] **Step 4: Add date parsing for XHS DOM date text**
+
+Add a helper that handles common XHS visible date formats without pretending precision the page does not expose:
+
+```ts
+private toXhsRelativeDate(value?: string) {
+  if (!value) return undefined
+  const now = new Date()
+  if (value === '今天') return now
+  if (value === '昨天') return new Date(now.getTime() - 24 * 60 * 60 * 1000)
+
+  const daysAgo = value.match(/^(\\d+)天前$/)
+  if (daysAgo) {
+    return new Date(now.getTime() - Number(daysAgo[1]) * 24 * 60 * 60 * 1000)
+  }
+
+  const monthDay = value.match(/^(\\d{2})-(\\d{2})$/)
+  if (monthDay) {
+    const year = now.getFullYear()
+    return new Date(year, Number(monthDay[1]) - 1, Number(monthDay[2]))
+  }
+
+  return undefined
+}
+```
+
+- [ ] **Step 5: Verify with unit tests**
+
+```bash
+cd project/aitoearn-backend
+pnpm exec vitest run apps/aitoearn-server/src/core/acquisition/providers/xhs/xhs-bridge-acquisition.provider.spec.ts
+```
+
+Expected: provider test passes and proves DOM-captured comments are normalized into `NormalizedCommentSnapshot[]`.
+
+- [ ] **Step 6: Verify with a live local smoke test**
+
+Start local services and ensure the Chrome extension badge is `ON`, then use a logged-in XHS note page that visibly has comments:
+
+```bash
+./scripts/local-restart.sh --skip-build
+```
+
+Open:
+
+```text
+http://127.0.0.1:6061/zh-CN/acquisition
+```
+
+Manual fetch input:
+
+- platform: `小红书`
+- accountId: any configured local account id
+- postUrl: a full `https://www.xiaohongshu.com/explore/<noteId>?xsec_token=...` URL
+- postId: optional
+
+Expected UI result:
+
+- status is `ready`;
+- post is `saved`;
+- comments is greater than `0` for a page that visibly contains comments;
+- latest comments display `dataSource = xhs_bridge_capture`.
+
+- [ ] **Step 7: Verify persistence**
+
+Query the local MongoDB collection for the fetched note:
+
+```bash
+mongosh 'mongodb://127.0.0.1:27017/aitoearn_channel' --eval '
+db.comment_snapshot.find({
+  platform: "xhs",
+  postId: "<noteId>"
+}, {
+  commentId: 1,
+  parentCommentId: 1,
+  userName: 1,
+  content: 1,
+  likeCount: 1,
+  ipLocation: 1,
+  xsecToken: 1,
+  dataSource: 1
+}).limit(5).toArray()
+'
+```
+
+Expected:
+
+- at least one document exists for a note page that visibly has comments;
+- `content` is not empty;
+- `userName` is not empty;
+- `dataSource` is `xhs_bridge_capture`;
+- `xsecToken` is present when the source URL has `xsec_token`.
+
+- [ ] **Step 8: Update final verification commands**
+
+Run the standard Phase 1 verification:
+
+```bash
+cd project/aitoearn-backend
+pnpm nx run aitoearn-server:build
+pnpm exec vitest run \
+  apps/aitoearn-server/src/core/xhs-bridge/xhs-bridge-hub.spec.ts \
+  apps/aitoearn-server/src/core/acquisition/providers/xhs/xhs-bridge-acquisition.provider.spec.ts
+cd ../aitoearn-web
+pnpm run type-check
+cd ../..
+git diff --check
+```
+
+Expected: all commands pass.
+
+---
+
 ### Task 6: Implement Douyin Official Comment Provider
 
 **Files:**
 - Modify: `project/aitoearn-backend/apps/aitoearn-server/src/core/channel/libs/douyin/common.ts`
 - Modify: `project/aitoearn-backend/apps/aitoearn-server/src/core/channel/libs/douyin/douyin-api.service.ts`
+- Modify: `project/aitoearn-backend/apps/aitoearn-server/src/core/channel/platforms/douyin/douyin.service.ts`
 - Create: `project/aitoearn-backend/apps/aitoearn-server/src/core/acquisition/providers/douyin/douyin-acquisition.provider.ts`
 - Create: `project/aitoearn-backend/apps/aitoearn-server/src/core/acquisition/providers/douyin/douyin-acquisition.provider.spec.ts`
 - Modify: `project/aitoearn-backend/apps/aitoearn-server/src/core/acquisition/acquisition.module.ts`
 
-- [ ] **Step 1: Add Douyin response interfaces**
+- [ ] **Step 1: Preserve Douyin authorization scope**
+
+`DouyinAccessTokenInfo` already contains `scope: string`, and `saveOAuthCredential()` writes the full `accessTokenInfo` to Redis. The current durable fallback path can lose scope information because `getOAuth2Credential()` rebuilds credentials with `scopes: []`.
+
+Update Douyin auth storage before implementing the provider:
+
+```ts
+// DouyinApiService.getAuthPage()
+const scopes = ['user_info', 'data.external.user', 'item.comment'].join(',')
+```
+
+Only enable `item.comment` after the app has obtained this Open Platform permission. If the permission is not approved yet, keep the old scopes and the provider should report `permission_required`.
+
+Persist and restore the raw token payload:
+
+```ts
+// DouyinService.saveOAuthCredential()
+await this.oauth2CredentialRepository.upsertOne(accountId, this.platform, {
+  accessToken: accessTokenInfo.access_token,
+  refreshToken: accessTokenInfo.refresh_token,
+  accessTokenExpiresAt: accessTokenInfo.expires_in,
+  raw: JSON.stringify(accessTokenInfo),
+})
+
+// DouyinService.getAccountAuthInfo()
+const cached = await this.redisService.getJson<DouyinAccessTokenInfo>(
+  ChannelRedisKeys.accessToken('douyin', accountId),
+)
+if (cached) return cached
+
+const credential = await this.oauth2CredentialRepository.getOne(accountId, this.platform)
+if (!credential?.raw) return null
+return JSON.parse(credential.raw) as DouyinAccessTokenInfo
+```
+
+Do not silently convert missing scope data to `scopes: []`; missing scope metadata should be treated as `permission_required` with a clear reason.
+
+- [ ] **Step 2: Add Douyin response interfaces**
 
 Add interfaces for `/item/comment/list` and `/item/comment/reply/list`:
 
@@ -886,7 +1302,7 @@ export interface DouyinCommentListResponse {
 }
 ```
 
-- [ ] **Step 2: Add API methods to `DouyinApiService`**
+- [ ] **Step 3: Add API methods to `DouyinApiService`**
 
 ```ts
 async getVideoCommentList(
@@ -941,7 +1357,7 @@ async getVideoCommentReplyList(
 }
 ```
 
-- [ ] **Step 3: Implement provider**
+- [ ] **Step 4: Implement provider**
 
 The provider loads account auth through `DouyinService.getAccountAuthInfo(accountId)`, returns `PermissionRequired` when token scopes are missing or the API returns permission errors, and normalizes comments into `NormalizedCommentSnapshot`.
 
@@ -958,7 +1374,11 @@ export class DouyinAcquisitionProvider implements AcquisitionProvider {
     if (!auth) {
       return { status: AcquisitionCapabilityStatus.PendingAuthorization, reason: 'Douyin account is not authorized' }
     }
-    if (!this.hasCommentScope(auth)) {
+    const scopes = this.getScopes(auth)
+    if (scopes.length === 0) {
+      return { status: AcquisitionCapabilityStatus.PermissionRequired, reason: 'Douyin authorization scope is not recorded; re-auth is required' }
+    }
+    if (!scopes.includes('item.comment')) {
       return { status: AcquisitionCapabilityStatus.PermissionRequired, reason: 'Douyin account is missing item.comment scope' }
     }
     return { status: AcquisitionCapabilityStatus.Ready, reason: '' }
@@ -1035,24 +1455,25 @@ export class DouyinAcquisitionProvider implements AcquisitionProvider {
     return match?.[1] || ''
   }
 
-  private hasCommentScope(auth: Record<string, any>): boolean {
+  private getScopes(auth: Record<string, any>): string[] {
     const raw = auth.scope ?? auth.scopes ?? ''
-    const scopes = Array.isArray(raw) ? raw : String(raw).split(/[,\\s]+/)
-    return scopes.includes('item.comment')
+    return (Array.isArray(raw) ? raw : String(raw).split(/[,\\s]+/)).filter(Boolean)
   }
 }
 ```
 
-- [ ] **Step 4: Add provider tests**
+- [ ] **Step 5: Add provider tests**
 
 Mock `DouyinService.getAccountAuthInfo()` and `DouyinApiService.getVideoCommentList()` to assert:
 
 - no auth returns `pending_authorization`;
+- authorization with missing scope metadata returns `permission_required` and asks for re-auth;
 - authorized account without `item.comment` returns `permission_required`;
+- Redis miss with persisted raw token restores `item.comment` scope through `DouyinService.getAccountAuthInfo()`;
 - successful API response normalizes comment snapshots;
 - permission error returns `permission_required`.
 
-- [ ] **Step 5: Verify tests**
+- [ ] **Step 6: Verify tests**
 
 ```bash
 cd project/aitoearn-backend
@@ -1152,17 +1573,21 @@ export class AcquisitionService {
 - [ ] **Step 3: Implement controller**
 
 ```ts
+import { ApiDoc } from '@yikart/common'
+
 @ApiTags('获客/采集')
-@Controller('acquisition')
+@Controller('/acquisition')
 export class AcquisitionController {
   constructor(private readonly acquisitionService: AcquisitionService) {}
 
-  @Post('works/fetch')
+  @ApiDoc({ summary: '立即抓取作品评论', body: FetchWorkDto.schema })
+  @Post('/works/fetch')
   async fetchNow(@GetToken() token: TokenInfo, @Body() dto: FetchWorkDto) {
     return await this.acquisitionService.fetchNow(token.id, dto)
   }
 
-  @Post('works/fetch/enqueue')
+  @ApiDoc({ summary: '异步抓取作品评论', body: EnqueueCommentFetchDto.schema })
+  @Post('/works/fetch/enqueue')
   async enqueue(@GetToken() token: TokenInfo, @Body() dto: EnqueueCommentFetchDto) {
     return await this.acquisitionService.enqueueCommentFetch(token.id, dto)
   }
@@ -1211,7 +1636,7 @@ Expected: tests pass.
 
 - [ ] **Step 1: Implement comment fetch consumer**
 
-Use `@QueueProcessor(QueueName.AcquisitionCommentFetch, { concurrency: 3 })`. Import `AcquisitionCommentFetchData` from `@yikart/aitoearn-queue`. Acquire lock key `acquisition:comment-fetch:${platform}:${accountId}` for 120 seconds with `RedlockService`. When acquired, call `AcquisitionService.fetchNow(userId, dto)`. Release lock in `finally`.
+Use `@QueueProcessor(QueueName.AcquisitionCommentFetch, { concurrency: 3 })`. Import `AcquisitionCommentFetchData` from `@yikart/aitoearn-queue`; Phase 0 defines this interface with `userId`, so do not add `& { userId: string }` locally. Acquire lock key `acquisition:comment-fetch:${platform}:${accountId}` for 120 seconds with `RedlockService`. When acquired, call `AcquisitionService.fetchNow(userId, dto)`. Release lock in `finally`.
 
 ```ts
 import { randomUUID } from 'node:crypto'
@@ -1227,7 +1652,7 @@ export class AcquisitionCommentFetchConsumer extends WorkerHost {
     super()
   }
 
-  async process(job: Job<AcquisitionCommentFetchData & { userId: string }>) {
+  async process(job: Job<AcquisitionCommentFetchData>) {
     const lockKey = `acquisition:comment-fetch:${job.data.platform}:${job.data.accountId}`
     const lockValue = `${job.id || 'job'}:${randomUUID()}`
     const locked = await this.redlockService.acquireLock(lockKey, lockValue, 120)
@@ -1270,12 +1695,28 @@ Expected: build passes.
 - Modify: `project/aitoearn-backend/apps/aitoearn-server/src/core/channel/publishing/providers/base.service.ts`
 - Modify: `project/aitoearn-backend/libs/aitoearn-queue/src/interfaces/acquisition.interface.ts`
 
-- [ ] **Step 1: Ensure backfill job data includes `userId`**
+- [ ] **Step 1: Ensure acquisition queue job data includes `userId`**
 
-Extend `AcquisitionPostBackfillData`:
+Phase 0 should already define `userId` on `AcquisitionCommentFetchData`. Confirm the local branch has both queue payloads typed this way before wiring consumers:
 
 ```ts
-userId: string
+export interface AcquisitionCommentFetchData {
+  userId: string
+  accountId: string
+  platform: string
+  postId?: string
+  postUrl: string
+  cursor?: string
+  fetchBatch: string
+}
+
+export interface AcquisitionPostBackfillData {
+  userId: string
+  accountId: string
+  platform: string
+  postId?: string
+  postUrl: string
+}
 ```
 
 - [ ] **Step 2: Enqueue acquisition backfill from `completePublishTask()`**
@@ -1322,9 +1763,11 @@ Expected: existing publishing tests pass. Update mocks to include `addAcquisitio
 
 **Files:**
 - Create: `project/aitoearn-web/src/api/acquisition.ts`
-- Create: `project/aitoearn-web/src/app/[lng]/acquisition/components/CommentCapabilityCards.tsx`
-- Create: `project/aitoearn-web/src/app/[lng]/acquisition/components/WorkFetchPanel.tsx`
+- Create: `project/aitoearn-web/src/app/[lng]/acquisition/components/CommentCapabilityCards/index.tsx`
+- Create: `project/aitoearn-web/src/app/[lng]/acquisition/components/WorkFetchPanel/index.tsx`
 - Modify: `project/aitoearn-web/src/app/[lng]/acquisition/acquisitionPageCore.tsx`
+- Modify: `project/aitoearn-web/src/app/i18n/locales/zh-CN/route.json`
+- Modify: `project/aitoearn-web/src/app/i18n/locales/en/route.json`
 
 - [ ] **Step 1: Add API wrappers**
 
@@ -1361,6 +1804,8 @@ export function fetchAcquisitionWork(data: AcquisitionFetchRequest) {
 
 - [ ] **Step 2: Add capability cards component**
 
+Create `components/CommentCapabilityCards/index.tsx`.
+
 Render three static Phase 1 cards:
 
 - XHS: “插件/Bridge 真实网页会话”
@@ -1370,6 +1815,8 @@ Render three static Phase 1 cards:
 Use compact cards, no nested cards.
 
 - [ ] **Step 3: Add manual fetch panel**
+
+Create `components/WorkFetchPanel/index.tsx`.
 
 Fields:
 
@@ -1388,6 +1835,20 @@ Also show source provenance required by PRD acceptance:
 - [ ] **Step 4: Mount components in the Data Dashboard tab**
 
 In `AcquisitionPageCore`, place `CommentCapabilityCards` and `WorkFetchPanel` under the `dashboard` tab placeholder. Keep other tabs as placeholders.
+
+Also replace Phase 0 hard-coded tab labels and placeholder copy with i18n keys. Existing route files use flat keys such as `header.acquisition`, so keep that style and add/confirm at least these keys under both `zh-CN/route.json` and `en/route.json`:
+
+```json
+{
+  "acquisition.subtitle": "多平台服装 AI 获客工作台",
+  "acquisition.tabs.dashboard": "数据看板",
+  "acquisition.tabs.content": "内容管理",
+  "acquisition.tabs.hooks": "引流管理",
+  "acquisition.tabs.leads": "线索追踪",
+  "acquisition.tabs.accounts": "多账号管理",
+  "acquisition.placeholder": "Phase 1 路由骨架，后续阶段接入更多真实数据。"
+}
+```
 
 - [ ] **Step 5: Verify frontend type check**
 
@@ -1469,6 +1930,8 @@ Expected: changes are limited to Phase 1 backend acquisition, XHS bridge extensi
 - XHS Bridge exposes backend-callable status and command APIs.
 - `POST /acquisition/works/fetch` accepts XHS and Douyin work links and persists normalized snapshots.
 - XHS comments are fetched through the Bridge path and stored in `comment_snapshot`.
+- For a logged-in XHS note page that visibly contains `.comment-item` rows, a manual fetch must return `commentsSaved > 0`; `ready / postSaved=true / commentsSaved=0` is not acceptable unless the visible page has no comments.
+- XHS comment snapshots include non-empty `userName`, non-empty `content`, stable `commentId`, `parentCommentId` for visible child replies when present, `likeCount`, `ipLocation` when visible, `xsecToken` when the source URL has it, and `dataSource = xhs_bridge_capture`.
 - Douyin comments are fetched through official comment APIs when the authorized account has required permission.
 - Douyin missing authorization/permission is persisted as account capability status instead of returning fake comment data.
 - Post snapshots are written to `post_snapshot` with raw and normalized metrics.

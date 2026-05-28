@@ -1,0 +1,68 @@
+import { Module } from '@nestjs/common'
+import { AitoearnAiClientModule } from '@yikart/aitoearn-ai-client'
+import { ChannelDbModule } from '@yikart/channel-db'
+import { DouyinApiModule } from '../channel/libs/douyin/douyin-api.module'
+import { DouyinModule } from '../channel/platforms/douyin/douyin.module'
+import { PublishModule } from '../channel/publishing/publishing.module'
+import { SensitiveWordModule } from '../sensitive-word/sensitive-word.module'
+import { XhsBridgeModule } from '../xhs-bridge/xhs-bridge.module'
+import { ACQUISITION_PROVIDERS, AcquisitionPlatform } from './acquisition.constants'
+import { AcquisitionController } from './acquisition.controller'
+import { AcquisitionService } from './acquisition.service'
+import { CommentCapabilityService } from './comment-capability.service'
+import { AcquisitionContentController } from './content/acquisition-content.controller'
+import { ContentGenerationService } from './content/content-generation.service'
+import { ContentReviewService } from './content/content-review.service'
+import { ContentScheduleService } from './content/content-schedule.service'
+import { HookSelectionService } from './content/hook-selection.service'
+import { PlatformContentAdapterService } from './content/platform-content-adapter.service'
+import { StrategyTemplateService } from './content/strategy-template.service'
+import { DouyinAcquisitionProvider } from './providers/douyin/douyin-acquisition.provider'
+import { XhsBridgeAcquisitionProvider } from './providers/xhs/xhs-bridge-acquisition.provider'
+import { SnapshotPersistenceService } from './snapshot-persistence.service'
+import { AcquisitionCommentFetchConsumer } from './workers/acquisition-comment-fetch.consumer'
+import { AcquisitionPostBackfillConsumer } from './workers/acquisition-post-backfill.consumer'
+
+@Module({
+  imports: [
+    XhsBridgeModule,
+    DouyinModule,
+    DouyinApiModule,
+    ChannelDbModule,
+    SensitiveWordModule,
+    AitoearnAiClientModule,
+    PublishModule,
+  ],
+  controllers: [
+    AcquisitionController,
+    AcquisitionContentController,
+  ],
+  providers: [
+    AcquisitionService,
+    SnapshotPersistenceService,
+    CommentCapabilityService,
+    XhsBridgeAcquisitionProvider,
+    DouyinAcquisitionProvider,
+    AcquisitionCommentFetchConsumer,
+    AcquisitionPostBackfillConsumer,
+    PlatformContentAdapterService,
+    HookSelectionService,
+    ContentGenerationService,
+    ContentReviewService,
+    ContentScheduleService,
+    StrategyTemplateService,
+    {
+      provide: ACQUISITION_PROVIDERS,
+      useFactory: (
+        xhsProvider: XhsBridgeAcquisitionProvider,
+        douyinProvider: DouyinAcquisitionProvider,
+      ) => ({
+        [AcquisitionPlatform.Xhs]: xhsProvider,
+        [AcquisitionPlatform.Douyin]: douyinProvider,
+      }),
+      inject: [XhsBridgeAcquisitionProvider, DouyinAcquisitionProvider],
+    },
+  ],
+  exports: [AcquisitionService],
+})
+export class AcquisitionModule {}

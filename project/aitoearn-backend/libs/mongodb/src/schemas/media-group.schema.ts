@@ -18,6 +18,7 @@ export class MediaGroup extends WithTimestampSchema {
   @Prop({
     required: true,
     index: true,
+    type: String,
   })
   userId: string
 
@@ -25,6 +26,7 @@ export class MediaGroup extends WithTimestampSchema {
     required: true,
     index: true,
     default: UserType.User,
+    type: String,
   })
   userType: UserType
 
@@ -32,16 +34,19 @@ export class MediaGroup extends WithTimestampSchema {
     required: true,
     enum: MediaType,
     index: true,
+    type: String,
   })
   type: MediaType
 
   @Prop({
     required: true,
+    type: String,
   })
   title: string
 
   @Prop({
     required: false,
+    type: String,
   })
   desc?: string
 
@@ -50,6 +55,7 @@ export class MediaGroup extends WithTimestampSchema {
     required: true,
     index: true,
     default: false,
+    type: Boolean,
   })
   isDefault: boolean
 }

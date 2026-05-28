@@ -57,6 +57,7 @@ export class PostMediaContainer extends BaseTemp {
     required: true,
     enum: PostCategory,
     default: PostCategory.POST,
+    type: String,
   })
   category: PostCategory
 
@@ -64,6 +65,7 @@ export class PostMediaContainer extends BaseTemp {
     required: true,
     enum: PostSubCategory,
     default: PostSubCategory.PLAINTEXT,
+    type: String,
   })
   subCategory: PostSubCategory
 
@@ -71,6 +73,7 @@ export class PostMediaContainer extends BaseTemp {
     required: true,
     enum: PostMediaStatus,
     default: PostMediaStatus.CREATED,
+    type: Number,
   })
   status: PostMediaStatus
 

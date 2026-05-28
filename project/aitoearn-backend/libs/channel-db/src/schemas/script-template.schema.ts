@@ -41,7 +41,7 @@ export class ScriptTemplate extends BaseTemp {
   @Prop({ required: true, index: true, type: String })
   name: string
 
-  @Prop({ required: true, enum: ScriptTemplateScene, index: true })
+  @Prop({ required: true, enum: ScriptTemplateScene, index: true, type: String })
   scene: ScriptTemplateScene
 
   @Prop({ required: true, type: String })
@@ -56,7 +56,7 @@ export class ScriptTemplate extends BaseTemp {
   @Prop({ type: [String], default: [] })
   applicableCategories: string[]
 
-  @Prop({ required: true, enum: ScriptTemplateRiskLevel, default: ScriptTemplateRiskLevel.Low, index: true })
+  @Prop({ required: true, enum: ScriptTemplateRiskLevel, default: ScriptTemplateRiskLevel.Low, index: true, type: String })
   riskLevel: ScriptTemplateRiskLevel
 
   @Prop({ type: ScriptPlatformConstraintsSchema, default: () => ({}) })

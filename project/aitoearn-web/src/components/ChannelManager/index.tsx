@@ -11,6 +11,7 @@
 'use client'
 
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden'
+import { usePathname } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import { useTransClient } from '@/app/i18n/client'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -21,6 +22,7 @@ import { MainPage } from './components/MainPage'
 
 export function ChannelManager() {
   const { t } = useTransClient('account')
+  const pathname = usePathname()
 
   const { open, currentView, closeModal } = useChannelManagerStore(
     useShallow(state => ({
@@ -29,6 +31,10 @@ export function ChannelManager() {
       closeModal: state.closeModal,
     })),
   )
+
+  if (pathname?.includes('/account-management')) {
+    return null
+  }
 
   // 根据当前视图获取标题
   const getTitle = () => {
