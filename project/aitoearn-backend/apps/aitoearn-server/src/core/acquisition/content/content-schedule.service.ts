@@ -3,7 +3,7 @@ import { AccountType } from '@yikart/aitoearn-server-client'
 import { AcquisitionContentRepository, AcquisitionContentStatus } from '@yikart/channel-db'
 import { AppException, ResponseCode } from '@yikart/common'
 import { PublishRecordSource, PublishType } from '@yikart/mongodb'
-import type { PublishingService } from '../../channel/publishing/publishing.service'
+import { PublishingService } from '../../channel/publishing/publishing.service'
 import { ScheduleAcquisitionContentDto } from './acquisition-content.dto'
 
 @Injectable()

@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AcquisitionContentStatus } from '@yikart/channel-db'
+
+vi.mock('../../channel/publishing/publishing.service', () => ({
+  PublishingService: class PublishingService {},
+}))
+
 import { ContentScheduleService } from './content-schedule.service'
 
 describe('ContentScheduleService', () => {
