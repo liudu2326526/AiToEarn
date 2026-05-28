@@ -36,6 +36,9 @@ export class CommentSnapshot extends BaseTemp {
   @Prop({ type: String, default: '' })
   ipLocation: string
 
+  @Prop({ type: String, default: '' })
+  xsecToken: string
+
   @Prop({ type: Date, default: null, index: true })
   commentedAt?: Date
 

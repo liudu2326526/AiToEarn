@@ -27,9 +27,19 @@ const URL_PATTERN = /https?:\/\/[^\s]+|www\.[^\s]+/gi
 
 @Injectable()
 export class SensitiveWordService {
+  private readonly defaultRoot: DfaNode
+
+  constructor() {
+    this.defaultRoot = this.buildTree(DEFAULT_WORDS)
+  }
+
   check(text: string, customWords: string[] = []): SensitiveWordCheckResult {
+    const root = customWords.length > 0
+      ? this.buildTree([...DEFAULT_WORDS, ...customWords])
+      : this.defaultRoot
+
     const hits = [
-      ...this.matchWords(text, [...DEFAULT_WORDS, ...customWords]),
+      ...this.matchWords(text, root),
       ...this.matchPattern(text, PHONE_PATTERN),
       ...this.matchPattern(text, URL_PATTERN),
     ]
@@ -40,8 +50,7 @@ export class SensitiveWordService {
     }
   }
 
-  private matchWords(text: string, words: string[]): string[] {
-    const root = this.buildTree(words)
+  private matchWords(text: string, root: DfaNode): string[] {
     const hits: string[] = []
 
     for (let start = 0; start < text.length; start += 1) {

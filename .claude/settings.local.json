@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:aitoearn.cn)",
+      "Bash(grep -E \"\\\\.\\(ts|js\\)$\")",
+      "WebSearch",
+      "WebFetch(domain:github.com)"
+    ]
+  }
+}

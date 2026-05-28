@@ -6,6 +6,13 @@ import { ProxyUrls } from '@/constant'
 
 acceptLanguage.languages(languages)
 
+export function getRequestOrigin(req: NextRequest) {
+  const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || req.nextUrl.host
+  const proto = req.headers.get('x-forwarded-proto') || req.nextUrl.protocol.replace(':', '') || 'https'
+
+  return `${proto}://${host}`
+}
+
 export const config = {
   // matcher: '/:lng*'
   matcher: ['/((?!api|_next/static|_next/image|assets|favicon.ico|sw.js|site.webmanifest).*)'],
@@ -56,7 +63,7 @@ export function middleware(req: NextRequest) {
     && !req.nextUrl.pathname.startsWith('/_next')
   ) {
     return NextResponse.redirect(
-      new URL(`/${lng}${req.nextUrl.pathname}${req.nextUrl.search}`, req.url),
+      new URL(`/${lng}${req.nextUrl.pathname}${req.nextUrl.search}`, getRequestOrigin(req)),
     )
   }
 

@@ -26,6 +26,9 @@ export class PostSnapshot extends BaseTemp {
   @Prop({ required: true, index: true, type: String })
   postId: string
 
+  @Prop({ required: true, index: true, type: String })
+  fetchDate: string
+
   @Prop({ type: String, default: '' })
   postUrl: string
 

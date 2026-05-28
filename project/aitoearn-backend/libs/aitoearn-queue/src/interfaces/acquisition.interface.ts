@@ -1,13 +1,15 @@
 export interface AcquisitionCommentFetchData {
+  userId: string
   accountId: string
   platform: string
-  postId: string
-  postUrl?: string
+  postId?: string
+  postUrl: string
   cursor?: string
   fetchBatch: string
 }
 
 export interface AcquisitionPostBackfillData {
+  userId: string
   accountId: string
   platform: string
   postId?: string

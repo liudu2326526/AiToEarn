@@ -27,5 +27,10 @@
   "mobileBottom.interaction": "互动",
   "aiSocial": "AI发布",
   "xhsData": "小红书数据",
-  "header.acquisition": "获客工作台"
+  "header.acquisition": "获客工作台",
+  "acquisition.tabs.dashboard": "数据看板",
+  "acquisition.tabs.content": "内容管理",
+  "acquisition.tabs.hooks": "引流管理",
+  "acquisition.tabs.leads": "线索追踪",
+  "acquisition.tabs.accounts": "多账号管理"
 }

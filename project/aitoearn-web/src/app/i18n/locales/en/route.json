@@ -27,5 +27,10 @@
   "aiSocial": "AI Publish",
   "xhsData": "XHS Data",
   "download": "Download",
-  "header.acquisition": "Acquisition"
+  "header.acquisition": "Acquisition",
+  "acquisition.tabs.dashboard": "Dashboard",
+  "acquisition.tabs.content": "Content",
+  "acquisition.tabs.hooks": "Hooks",
+  "acquisition.tabs.leads": "Leads",
+  "acquisition.tabs.accounts": "Accounts"
 }

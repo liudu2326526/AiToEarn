@@ -21,7 +21,7 @@ import { useTransClient } from '@/app/i18n/client'
 import { MediaPreview } from '@/components/common/MediaPreview'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useDocumentTitle } from '@/hooks'
+import { useDocumentTitle, useGetClientLng } from '@/hooks'
 import { getAssetMediaType } from '@/utils/agent-asset'
 import { getOssUrl } from '@/utils/oss'
 import { AgentAssetCard } from './components/AgentAssetCard'
@@ -88,6 +88,7 @@ function readImageDimensions(file: File): Promise<{ width: number, height: numbe
 
 export function AgentAssetsPageCore() {
   const { t } = useTransClient('material')
+  const lng = useGetClientLng()
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const localUploadInputRef = useRef<HTMLInputElement>(null)
   const portraitUploadInputRef = useRef<HTMLInputElement>(null)
@@ -404,7 +405,7 @@ export function AgentAssetsPageCore() {
                   emptyIcon={<Bot className="w-10 h-10 text-muted-foreground" />}
                   emptyTitle={t('agentAssets.noAssets')}
                   emptyDescription={t('agentAssets.noAssetsDesc')}
-                  emptyAction={<Button asChild><Link href="/chat">{t('agentAssets.goToChat')}</Link></Button>}
+                  emptyAction={<Button asChild><Link href={`/${lng}/chat`}>{t('agentAssets.goToChat')}</Link></Button>}
                   onAssetClick={handleAssetClick}
                   onLoadMore={handleLoadMore}
                 />
