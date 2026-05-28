@@ -28,6 +28,7 @@ import { ToolsModule } from './core/tools/tools.module'
 import { UnifiedMcpModule } from './core/unified-mcp/unified-mcp.module'
 import { UserModule } from './core/user/user.module'
 import { XhsBridgeModule } from './core/xhs-bridge/xhs-bridge.module'
+import { SensitiveWordModule } from './core/sensitive-word/sensitive-word.module'
 
 @Module({
   imports: [
@@ -88,6 +89,7 @@ import { XhsBridgeModule } from './core/xhs-bridge/xhs-bridge.module'
     UnifiedMcpModule,
     PromotionMarketplaceModule,
     XhsBridgeModule,
+    SensitiveWordModule,
   ],
   controllers: [],
   providers: [],
