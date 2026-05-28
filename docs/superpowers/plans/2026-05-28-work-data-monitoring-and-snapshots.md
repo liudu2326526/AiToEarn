@@ -939,6 +939,8 @@ The drawer should include:
 
 - [ ] **Step 5: Add source badge mapping**
 
+Reuse and replace the existing `acquisition.pages.workData.*` keys in `route.json`; do not create a second parallel key tree for the same `/work-data` page. After `AcquisitionRoadmapPage` no longer renders `workData`, remove any `workData` roadmap-only keys that are no longer referenced.
+
 ```ts
 const sourceLabelMap = {
   xhs_plugin_api: '小红书插件接口',
