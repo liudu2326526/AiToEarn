@@ -9,6 +9,7 @@ import {
   Home,
   Sparkles,
   Store,
+  Target,
   Upload,
   WalletCards,
 } from 'lucide-react'
@@ -38,6 +39,12 @@ export const routerData: IRouterDataItem[] = [
     translationKey: 'aiSocial',
     path: '/ai-social',
     icon: <Sparkles size={20} />,
+  },
+  {
+    name: 'Acquisition',
+    translationKey: 'header.acquisition',
+    path: '/acquisition',
+    icon: <Target size={20} />,
   },
   {
     name: 'Task History',
