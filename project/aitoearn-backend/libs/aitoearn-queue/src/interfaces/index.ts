@@ -1,3 +1,4 @@
+export * from './acquisition.interface'
 export * from './ai-image-data.interface'
 export * from './ai-task-refund-data.interface'
 export * from './draft-generation-data.interface'

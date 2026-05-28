@@ -1,5 +1,9 @@
 import type { Job, JobsOptions, Queue } from 'bullmq'
 import type {
+  AcquisitionCommentFetchData,
+  AcquisitionLeadNotifyData,
+  AcquisitionPostBackfillData,
+  AcquisitionSensitiveCheckData,
   AiImageData,
   AiTaskRefundData,
   DraftGenerationData,
@@ -49,6 +53,14 @@ export class QueueService {
     private draftGenerationLowPriorityQueue: Queue,
     @InjectQueue(QueueName.UserEventBatch)
     private userEventBatchQueue: Queue,
+    @InjectQueue(QueueName.AcquisitionCommentFetch)
+    private acquisitionCommentFetchQueue: Queue,
+    @InjectQueue(QueueName.AcquisitionPostBackfill)
+    private acquisitionPostBackfillQueue: Queue,
+    @InjectQueue(QueueName.AcquisitionLeadNotify)
+    private acquisitionLeadNotifyQueue: Queue,
+    @InjectQueue(QueueName.AcquisitionSensitiveCheck)
+    private acquisitionSensitiveCheckQueue: Queue,
   ) {
     // 从配置中读取默认的 job options
     this.defaultOptions = config.jobOptions || {
@@ -187,6 +199,35 @@ export class QueueService {
    */
   async addUserEventBatchJob(data: UserEventBatchData, options?: JobsOptions) {
     return await this.userEventBatchQueue.add('batch-insert', data, {
+      ...this.defaultOptions,
+      ...options,
+    })
+  }
+
+  async addAcquisitionCommentFetchJob(data: AcquisitionCommentFetchData, options?: JobsOptions) {
+    return await this.acquisitionCommentFetchQueue.add('fetch-comments', data, {
+      ...this.defaultOptions,
+      jobId: `${data.platform}:${data.accountId}:${data.postId}:${data.fetchBatch}`,
+      ...options,
+    })
+  }
+
+  async addAcquisitionPostBackfillJob(data: AcquisitionPostBackfillData, options?: JobsOptions) {
+    return await this.acquisitionPostBackfillQueue.add('backfill-post', data, {
+      ...this.defaultOptions,
+      ...options,
+    })
+  }
+
+  async addAcquisitionLeadNotifyJob(data: AcquisitionLeadNotifyData, options?: JobsOptions) {
+    return await this.acquisitionLeadNotifyQueue.add('notify-lead', data, {
+      ...this.defaultOptions,
+      ...options,
+    })
+  }
+
+  async addAcquisitionSensitiveCheckJob(data: AcquisitionSensitiveCheckData, options?: JobsOptions) {
+    return await this.acquisitionSensitiveCheckQueue.add('check-sensitive', data, {
       ...this.defaultOptions,
       ...options,
     })

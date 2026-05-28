@@ -38,4 +38,15 @@ export enum QueueName {
 
   /** 用户事件批量写入队列 */
   UserEventBatch = 'user_event_batch',
+  /** 获客评论抓取队列 */
+  AcquisitionCommentFetch = 'acquisition_comment_fetch',
+
+  /** 获客作品回填队列 */
+  AcquisitionPostBackfill = 'acquisition_post_backfill',
+
+  /** 获客线索通知队列 */
+  AcquisitionLeadNotify = 'acquisition_lead_notify',
+
+  /** 获客敏感词检查队列 */
+  AcquisitionSensitiveCheck = 'acquisition_sensitive_check',
 }
