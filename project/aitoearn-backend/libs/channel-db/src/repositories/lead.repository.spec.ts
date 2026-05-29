@@ -57,7 +57,18 @@ describe('LeadRepository', () => {
     expect(result.lead?.id).toBe('lead-1')
     expect(model.findOneAndUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 'user-1', commentId: 'comment-1' }),
-      expect.anything(),
+      expect.objectContaining({
+        $setOnInsert: expect.not.objectContaining({
+          userName: expect.anything(),
+          userAvatar: expect.anything(),
+          sourceContent: expect.anything(),
+        }),
+        $set: expect.objectContaining({
+          userName: 'buyer',
+          userAvatar: '',
+          sourceContent: '多少钱',
+        }),
+      }),
       expect.objectContaining({
         new: true,
         upsert: true,

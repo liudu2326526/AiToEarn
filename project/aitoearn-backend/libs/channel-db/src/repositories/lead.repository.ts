@@ -117,7 +117,11 @@ export class LeadRepository extends BaseRepository<Lead> {
       identity,
       {
         $setOnInsert: {
-          ...input,
+          userId: input.userId,
+          platform: input.platform,
+          accountId: input.accountId,
+          postId: input.postId,
+          commentId: input.commentId,
           parentCommentId: input.parentCommentId || '',
           sourceType: LeadSourceType.PublicComment,
           stage: LeadStage.NewComment,
