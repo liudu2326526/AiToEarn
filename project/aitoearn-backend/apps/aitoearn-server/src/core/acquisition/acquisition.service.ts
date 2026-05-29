@@ -32,6 +32,7 @@ export class AcquisitionService {
         hasMore: false,
         capabilityStatus: defaultStatus.status,
         capabilityReason: defaultStatus.reason,
+        fetchBatch: '',
         postSaved: false,
         commentsSaved: 0,
       }
@@ -39,16 +40,17 @@ export class AcquisitionService {
 
     const fetchBatch = 'fetchBatch' in dto && dto.fetchBatch ? dto.fetchBatch : uuidv4()
     const result = await provider.fetchWorkAndComments({ ...dto, platform, userId, fetchBatch })
-    await this.commentCapabilityService.save(dto.accountId, result.capabilityStatus, result.capabilityReason, {
+    const enriched = { ...result, fetchBatch }
+    await this.commentCapabilityService.save(dto.accountId, enriched.capabilityStatus, enriched.capabilityReason, {
       platform,
       fetchedAt: new Date().toISOString(),
     })
 
-    if (result.capabilityStatus !== AcquisitionCapabilityStatus.Ready) {
-      return { ...result, postSaved: false, commentsSaved: 0 }
+    if (enriched.capabilityStatus !== AcquisitionCapabilityStatus.Ready) {
+      return { ...enriched, postSaved: false, commentsSaved: 0 }
     }
 
-    return await this.snapshotPersistenceService.persistFetchResult(result)
+    return await this.snapshotPersistenceService.persistFetchResult(enriched)
   }
 
   async enqueueCommentFetch(userId: string, dto: AcquisitionFetchWorkDto) {

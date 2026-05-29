@@ -15,6 +15,8 @@ import { PromotionTaskRepository } from './promotion-task.repository'
 import { ReplyCommentRecordRepository } from './reply-comment-record.repository'
 import { ScriptTemplateRepository } from './script-template.repository'
 import { AcquisitionContentRepository } from './acquisition-content.repository'
+import { MonitoredPostRepository } from './monitored-post.repository'
+import { MonitoredPostFetchLogRepository } from './monitored-post-fetch-log.repository'
 
 export * from './base.repository'
 export * from './account-ops-config.repository'
@@ -34,6 +36,8 @@ export * from './promotion-task.repository'
 export * from './reply-comment-record.repository'
 export * from './script-template.repository'
 export * from './acquisition-content.repository'
+export * from './monitored-post.repository'
+export * from './monitored-post-fetch-log.repository'
 
 export const repositories = [
   PostMediaContainerRepository,
@@ -53,4 +57,6 @@ export const repositories = [
   PostSnapshotRepository,
   ScriptTemplateRepository,
   AcquisitionContentRepository,
+  MonitoredPostRepository,
+  MonitoredPostFetchLogRepository,
 ] as const

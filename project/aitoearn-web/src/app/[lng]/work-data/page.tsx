@@ -1,5 +1,7 @@
-import { AcquisitionRoadmapPage } from '../_components/AcquisitionRoadmapPage'
+'use client'
 
-export default function WorkDataPage() {
-  return <AcquisitionRoadmapPage type="workData" />
+import WorkDataPage from './WorkDataPage'
+
+export default function Page() {
+  return <WorkDataPage />
 }

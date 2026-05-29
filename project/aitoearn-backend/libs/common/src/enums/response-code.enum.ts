@@ -166,6 +166,12 @@ export enum ResponseCode {
   StrategyTemplateNotFound = 18601,
   HookTemplateNotFound = 18602,
   ScriptTemplateNotFound = 18603,
+  MonitoredPostNotFound = 18610,
+  MonitoredPostUrlUnparseable = 18611,
+  PublishedBackfillMissingPostUrl = 18612,
+  LeadNotFound = 18620,
+  LeadReplyBlocked = 18621,
+  LeadStageInvalid = 18622,
 
   // ========================================
   // 19000-19099: api-key / relay

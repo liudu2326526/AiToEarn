@@ -20,6 +20,21 @@ export class ReplyCommentRecordRepository extends BaseRepository<ReplyCommentRec
     return saved.toObject()
   }
 
+  async addLeadReplyResult(data: Partial<ReplyCommentRecord> & {
+    userId: string
+    accountId: string
+    leadId: string
+    platform: string
+    type: AccountType
+    commentId: string
+    commentContent: string
+    replyContent: string
+    status: 'success' | 'failed'
+    executionMode: 'manual' | 'platform_adapter'
+  }) {
+    return await this.add(data)
+  }
+
   async getList(
     filters: {
       userId: string

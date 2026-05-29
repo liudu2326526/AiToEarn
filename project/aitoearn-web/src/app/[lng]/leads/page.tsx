@@ -1,5 +1,5 @@
-import { AcquisitionRoadmapPage } from '../_components/AcquisitionRoadmapPage'
+import LeadsPage from './LeadsPage'
 
-export default function LeadsPage() {
-  return <AcquisitionRoadmapPage type="leads" />
+export default function Page() {
+  return <LeadsPage />
 }

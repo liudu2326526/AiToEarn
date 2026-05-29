@@ -1,6 +1,14 @@
 import { Injectable } from '@nestjs/common'
 import { XhsBridgeService } from '../../../xhs-bridge/xhs-bridge.service'
-import { AcquisitionCapabilityStatus, AcquisitionDataSource, AcquisitionPlatform } from '../../acquisition.constants'
+import {
+  AcquisitionCapabilityStatus,
+  AcquisitionDataSource,
+  AcquisitionPlatform,
+  METRIC_KEY_COLLECT_COUNT,
+  METRIC_KEY_COMMENT_COUNT,
+  METRIC_KEY_LIKE_COUNT,
+  METRIC_KEY_SHARE_COUNT,
+} from '../../acquisition.constants'
 import { AcquisitionFetchRequest, AcquisitionFetchResult, NormalizedCommentSnapshot } from '../../acquisition.types'
 import { AcquisitionProvider } from '../acquisition-provider.interface'
 import { XHS_CAPTURE_NOTE_STATE_EXPRESSION, XHS_EXPAND_COMMENTS_SCRIPT } from './xhs-extractors'
@@ -59,6 +67,7 @@ export class XhsBridgeAcquisitionProvider implements AcquisitionProvider {
         hasMore: false,
         capabilityStatus: capability.status,
         capabilityReason: capability.reason,
+        fetchBatch: request.fetchBatch || '',
       }
     }
 
@@ -89,13 +98,14 @@ export class XhsBridgeAcquisitionProvider implements AcquisitionProvider {
         hasMore: false,
         capabilityStatus: AcquisitionCapabilityStatus.Failed,
         capabilityReason: `XHS page data parse failed: ${message}`,
+        fetchBatch: request.fetchBatch || '',
       }
     }
 
     const postId = request.postId || this.extractPostId(request.postUrl) || request.postUrl
     const fetchedAt = new Date()
     const comments = this.normalizeComments(request, state.comments || [], postId)
-    const commentCount = this.extractCommentCount(state.note)
+    const normalizedMetrics = this.extractMetrics(state.note, comments.length)
 
     return {
       post: {
@@ -107,9 +117,7 @@ export class XhsBridgeAcquisitionProvider implements AcquisitionProvider {
         cover: this.extractCover(state.note),
         metrics: {
           raw: {},
-          normalized: {
-            commentCount: commentCount || comments.length,
-          },
+          normalized: normalizedMetrics,
         },
         fetchedAt,
         fetchDate: fetchedAt.toISOString().slice(0, 10),
@@ -120,6 +128,7 @@ export class XhsBridgeAcquisitionProvider implements AcquisitionProvider {
       hasMore: Boolean(state.hasMore),
       capabilityStatus: AcquisitionCapabilityStatus.Ready,
       capabilityReason: '',
+      fetchBatch: request.fetchBatch || '',
     }
   }
 
@@ -168,24 +177,101 @@ export class XhsBridgeAcquisitionProvider implements AcquisitionProvider {
   }
 
   private extractCover(note: unknown) {
-    if (typeof note === 'string') {
-      try {
-        const parsed = JSON.parse(note) as { cover?: string }
-        return parsed.cover || ''
-      }
-      catch {
-        return ''
+    const parsed = this.parseNoteObject(note)
+    return this.extractImageUrl(this.pickValue(parsed, ['cover', 'image', 'thumbnail']))
+      || this.extractImageUrl(this.pickValue(parsed, ['imageList', 'image_list', 'images', 'image_list_v2']))
+  }
+
+  private extractMetrics(note: unknown, fallbackCommentCount: number): Record<string, number> {
+    const parsed = this.parseNoteObject(note)
+    const interactInfo = this.pickObject(parsed, ['interactInfo', 'interact_info'])
+    const sources = [interactInfo, parsed].filter(Boolean) as Record<string, unknown>[]
+
+    const metrics: Record<string, number> = {}
+    const likeCount = this.extractMetricValue(sources, ['likedCount', 'liked_count', 'likeCount', 'like_count'])
+    const collectCount = this.extractMetricValue(sources, ['collectedCount', 'collected_count', 'collectCount', 'collect_count'])
+    const commentCount = this.extractMetricValue(sources, ['commentCount', 'comment_count'])
+    const shareCount = this.extractMetricValue(sources, ['sharedCount', 'shared_count', 'shareCount', 'share_count'])
+
+    if (likeCount !== undefined) metrics[METRIC_KEY_LIKE_COUNT] = likeCount
+    if (collectCount !== undefined) metrics[METRIC_KEY_COLLECT_COUNT] = collectCount
+    metrics[METRIC_KEY_COMMENT_COUNT] = commentCount ?? fallbackCommentCount
+    if (shareCount !== undefined) metrics[METRIC_KEY_SHARE_COUNT] = shareCount
+
+    return metrics
+  }
+
+  private pickObject(source: Record<string, unknown> | undefined, keys: string[]) {
+    if (!source) return undefined
+    for (const key of keys) {
+      const value = source[key]
+      if (value && typeof value === 'object') {
+        return value as Record<string, unknown>
       }
     }
-    if (note && typeof note === 'object' && 'cover' in note) {
-      return String((note as { cover?: unknown }).cover || '')
+    return undefined
+  }
+
+  private pickValue(source: Record<string, unknown> | undefined, keys: string[]) {
+    if (!source) return undefined
+    for (const key of keys) {
+      const value = source[key]
+      if (value !== undefined && value !== null && value !== '') return value
+    }
+    return undefined
+  }
+
+  private extractImageUrl(value: unknown): string {
+    if (!value) return ''
+    if (typeof value === 'string') return value
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const url = this.extractImageUrl(item)
+        if (url) return url
+      }
+      return ''
+    }
+    if (typeof value === 'object') {
+      const objectValue = value as Record<string, unknown>
+      const url = this.pickValue(objectValue, ['url', 'urlDefault', 'url_default', 'urlPre', 'url_pre', 'src', 'href'])
+      return typeof url === 'string' ? url : ''
     }
     return ''
   }
 
-  private extractCommentCount(note: unknown) {
-    const parsed = this.parseNoteObject(note)
-    return Number(parsed?.['commentCount'] || parsed?.['comment_count'] || 0)
+  private extractMetricValue(sources: Record<string, unknown>[], keys: string[]) {
+    for (const source of sources) {
+      for (const key of keys) {
+        if (!(key in source)) continue
+        const count = this.normalizeCount(source[key])
+        if (count !== undefined) return count
+      }
+    }
+    return undefined
+  }
+
+  private normalizeCount(value: unknown): number | undefined {
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? Math.max(0, Math.round(value)) : undefined
+    }
+
+    if (typeof value !== 'string') return undefined
+
+    const text = value.trim()
+    if (!text || text === '-') return undefined
+
+    const compact = text.replace(/,/g, '').replace(/\s/g, '').replace(/\+/g, '')
+    const multiplier = compact.includes('亿')
+      ? 100_000_000
+      : compact.includes('万') || /w/i.test(compact)
+        ? 10_000
+        : /k/i.test(compact)
+          ? 1_000
+          : 1
+    const numeric = Number.parseFloat(compact.replace(/[^\d.]/g, ''))
+    if (!Number.isFinite(numeric)) return undefined
+
+    return Math.max(0, Math.round(numeric * multiplier))
   }
 
   private parseNoteObject(note: unknown): Record<string, unknown> | undefined {

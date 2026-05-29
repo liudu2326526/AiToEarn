@@ -46,4 +46,56 @@ export class CommentSnapshotRepository extends BaseRepository<CommentSnapshot> {
       { sort: { likeCount: -1, commentedAt: -1 }, limit },
     )
   }
+
+  async listWithPagination(filter: {
+    accountId: string
+    platform: string
+    postId: string
+    keyword?: string
+    parentCommentId?: string
+    dataSource?: string
+    fetchBatch?: string
+    sortBy?: 'time' | 'like'
+    page: number
+    pageSize: number
+  }): Promise<[CommentSnapshot[], number]> {
+    const query: Record<string, unknown> = {
+      accountId: filter.accountId,
+      platform: filter.platform,
+      postId: filter.postId,
+    }
+    if (filter.keyword) query['content'] = { $regex: filter.keyword, $options: 'i' }
+    if (filter.parentCommentId !== undefined) query['parentCommentId'] = filter.parentCommentId
+    if (filter.dataSource) query['dataSource'] = filter.dataSource
+    if (filter.fetchBatch) query['fetchBatch'] = filter.fetchBatch
+
+    const skip = (filter.page - 1) * filter.pageSize
+    const sort = filter.sortBy === 'like'
+      ? ({ likeCount: -1, commentedAt: -1 } as const)
+      : ({ commentedAt: -1, likeCount: -1 } as const)
+
+    return await Promise.all([
+      this.commentSnapshotModel.find(query).sort(sort).skip(skip).limit(filter.pageSize).lean({ virtuals: true }).exec(),
+      this.commentSnapshotModel.countDocuments(query).exec(),
+    ])
+  }
+
+  async listForLeadMaterializationByPost(filter: {
+    platform: string
+    accountId: string
+    postId: string
+    fetchBatch?: string
+    limit: number
+  }) {
+    const query: Record<string, unknown> = {
+      platform: filter.platform,
+      accountId: filter.accountId,
+      postId: filter.postId,
+    }
+    if (filter.fetchBatch) query['fetchBatch'] = filter.fetchBatch
+    return await this.find(query, {
+      sort: { commentedAt: -1, createdAt: -1 },
+      limit: filter.limit,
+    })
+  }
 }

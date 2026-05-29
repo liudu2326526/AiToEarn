@@ -19,6 +19,19 @@ export enum LeadStatus {
   Invalid = 'invalid',
 }
 
+export enum LeadSourceType {
+  PublicComment = 'public_comment',
+  PrivateMessage = 'private_message',
+  Manual = 'manual',
+}
+
+export enum LeadSuggestionStatus {
+  Empty = 'empty',
+  Generated = 'generated',
+  Blocked = 'blocked',
+  Edited = 'edited',
+}
+
 @Schema({ _id: false })
 export class LeadAttribution {
   @Prop({ type: String, default: '' })
@@ -33,9 +46,32 @@ export class LeadAttribution {
 
 const LeadAttributionSchema = SchemaFactory.createForClass(LeadAttribution)
 
+@Schema({ _id: false })
+export class LeadSuggestedReply {
+  @Prop({ type: String, default: '' })
+  content: string
+
+  @Prop({ type: String, default: '' })
+  model: string
+
+  @Prop({ required: true, enum: LeadSuggestionStatus, default: LeadSuggestionStatus.Empty, type: String })
+  status: LeadSuggestionStatus
+
+  @Prop({ type: [String], default: [] })
+  riskHits: string[]
+
+  @Prop({ type: Date, default: null })
+  generatedAt?: Date
+}
+
+const LeadSuggestedReplySchema = SchemaFactory.createForClass(LeadSuggestedReply)
+
 @Schema({ ...DEFAULT_SCHEMA_OPTIONS, collection: 'lead' })
 export class Lead extends BaseTemp {
   id: string
+
+  @Prop({ required: true, index: true, type: String })
+  userId: string
 
   @Prop({ required: true, index: true, type: String })
   platform: string
@@ -49,8 +85,20 @@ export class Lead extends BaseTemp {
   @Prop({ type: String, default: '', index: true })
   commentId: string
 
+  @Prop({ type: String, default: '', index: true })
+  parentCommentId: string
+
   @Prop({ type: String, default: '' })
   userName: string
+
+  @Prop({ required: true, enum: LeadSourceType, default: LeadSourceType.PublicComment, index: true, type: String })
+  sourceType: LeadSourceType
+
+  @Prop({ type: String, default: '' })
+  userAvatar: string
+
+  @Prop({ type: String, default: '' })
+  sourceContent: string
 
   @Prop({ required: true, enum: LeadStage, default: LeadStage.NewComment, index: true, type: String })
   stage: LeadStage
@@ -64,8 +112,19 @@ export class Lead extends BaseTemp {
   @Prop({ type: LeadAttributionSchema, default: () => ({}) })
   attribution: LeadAttribution
 
+  @Prop({ type: LeadSuggestedReplySchema, default: () => ({}) })
+  suggestedReply: LeadSuggestedReply
+
+  @Prop({ type: String, default: '' })
+  lastReplyRecordId: string
+
   @Prop({ type: Date, default: null, index: true })
   lastFollowUpAt?: Date
 }
 
 export const LeadSchema = SchemaFactory.createForClass(Lead)
+
+LeadSchema.index(
+  { userId: 1, platform: 1, accountId: 1, postId: 1, commentId: 1, parentCommentId: 1 },
+  { unique: true, name: 'uniq_lead_public_comment_identity' },
+)

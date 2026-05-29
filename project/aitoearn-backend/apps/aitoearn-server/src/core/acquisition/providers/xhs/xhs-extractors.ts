@@ -38,13 +38,123 @@ export const XHS_CAPTURE_NOTE_STATE_EXPRESSION = `
   };
 
   const parseCount = value => {
-    const text = String(value || '').trim();
-    const match = text.match(/^(\\d+(?:\\.\\d+)?)(?:\\s*)(w|万)?$/i);
+    const text = String(value || '').replace(/,/g, '').replace(/\\s+/g, '').replace(/\\+/g, '').trim();
+    const match = text.match(/(\\d+(?:\\.\\d+)?)(w|万|k|千)?/i);
     if (!match) return 0;
 
     const numeric = Number(match[1]);
     if (!Number.isFinite(numeric)) return 0;
-    return match[2] ? Math.round(numeric * 10000) : Math.round(numeric);
+    if (/^(w|万)$/i.test(match[2] || '')) return Math.round(numeric * 10000);
+    if (/^(k|千)$/i.test(match[2] || '')) return Math.round(numeric * 1000);
+    return Math.round(numeric);
+  };
+
+  const readObjectValue = (source, keys) => {
+    if (!source || typeof source !== 'object') return undefined;
+    for (const key of keys) {
+      if (source[key] !== undefined && source[key] !== null && source[key] !== '') return source[key];
+    }
+    return undefined;
+  };
+
+  const pickImageUrl = value => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const url = pickImageUrl(item);
+        if (url) return url;
+      }
+      return '';
+    }
+    if (typeof value === 'object') {
+      return readObjectValue(value, ['url', 'urlDefault', 'url_default', 'urlPre', 'url_pre', 'src', 'href']) || '';
+    }
+    return '';
+  };
+
+  const extractNoteCover = note => {
+    const coverValue = pickImageUrl(readObjectValue(note, ['cover', 'image', 'thumbnail']));
+    if (coverValue) return coverValue;
+    return pickImageUrl(readObjectValue(note, ['imageList', 'image_list', 'images', 'image_list_v2']));
+  };
+
+  const pickInteractInfo = note => note?.interactInfo || note?.interact_info || note?.interact || {};
+
+  const findStateNote = () => {
+    const stateNames = ['__INITIAL_STATE__', '__INITIAL_SSR_STATE__', '__INITIAL_DATA__', '__NEXT_DATA__'];
+    const seen = new WeakSet();
+    const matchesNoteId = item => {
+      const id = readObjectValue(item, ['noteId', 'note_id', 'id', 'id_str', 'note_id_str']);
+      return noteId && id && String(id) === noteId;
+    };
+    const hasMetrics = item => {
+      const interact = pickInteractInfo(item);
+      return Boolean(
+        readObjectValue(interact, ['likedCount', 'liked_count', 'likeCount', 'like_count'])
+        || readObjectValue(interact, ['collectedCount', 'collected_count', 'collectCount', 'collect_count'])
+        || readObjectValue(interact, ['sharedCount', 'shared_count', 'shareCount', 'share_count'])
+        || readObjectValue(interact, ['commentCount', 'comment_count'])
+      );
+    };
+    const walk = (value, depth = 0) => {
+      if (!value || typeof value !== 'object' || depth > 8 || seen.has(value)) return null;
+      seen.add(value);
+
+      if (matchesNoteId(value) && hasMetrics(value)) return value;
+      if (value.note && typeof value.note === 'object' && matchesNoteId(value.note) && hasMetrics(value.note)) return value.note;
+      if (!noteId && hasMetrics(value) && (value.title || value.desc || value.body)) return value;
+
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          const matched = walk(item, depth + 1);
+          if (matched) return matched;
+        }
+        return null;
+      }
+
+      for (const key of Object.keys(value)) {
+        const child = value[key];
+        if (noteId && String(key).includes(noteId) && child && typeof child === 'object' && hasMetrics(child)) return child;
+        const matched = walk(child, depth + 1);
+        if (matched) return matched;
+      }
+      return null;
+    };
+
+    for (const name of stateNames) {
+      const matched = walk(window[name]);
+      if (matched) return matched;
+    }
+    return null;
+  };
+
+  const readDomActionCount = (keywords, selectors) => {
+    for (const selector of selectors) {
+      const el = document.querySelector(selector);
+      const count = parseCount(el?.textContent || '');
+      if (count) return count;
+    }
+
+    const nodes = Array.from(document.querySelectorAll('button, [role="button"], span, div'));
+    for (const el of nodes) {
+      const text = clean(el.innerText || el.textContent || '');
+      if (!text || text.length > 40 || !keywords.some(keyword => text.includes(keyword))) continue;
+
+      const directCount = parseCount(text);
+      if (directCount) return directCount;
+
+      const nearby = [
+        el.nextElementSibling,
+        el.previousElementSibling,
+        ...(el.parentElement ? Array.from(el.parentElement.children) : []),
+      ];
+      for (const item of nearby) {
+        const count = parseCount(item?.textContent || '');
+        if (count) return count;
+      }
+    }
+    return 0;
   };
 
   const findMetaIndex = lines => lines.findIndex(item => {
@@ -88,10 +198,24 @@ export const XHS_CAPTURE_NOTE_STATE_EXPRESSION = `
   const title = document.querySelector('meta[property="og:title"]')?.getAttribute('content')
     || document.querySelector('title')?.textContent
     || '';
-  const cover = document.querySelector('meta[property="og:image"]')?.getAttribute('content') || '';
+  const stateNote = findStateNote();
+  const cover = extractNoteCover(stateNote)
+    || document.querySelector('meta[property="og:image"]')?.getAttribute('content')
+    || document.querySelector('meta[name="twitter:image"]')?.getAttribute('content')
+    || document.querySelector('.note-slider-img, .swiper-slide img, .note-content img, img[src*="xhscdn"]')?.getAttribute('src')
+    || '';
+  const stateInteractInfo = pickInteractInfo(stateNote);
   const commentCountText = document.querySelector('.comments-el, .comments-container')?.textContent || '';
   const commentCountMatch = commentCountText.match(/共\\s*(\\d+)\\s*条评论/);
-  const commentCount = commentCountMatch ? Number(commentCountMatch[1]) : 0;
+  const commentCount = commentCountMatch
+    ? Number(commentCountMatch[1])
+    : parseCount(readObjectValue(stateInteractInfo, ['commentCount', 'comment_count']) || '');
+  const likedCount = parseCount(readObjectValue(stateInteractInfo, ['likedCount', 'liked_count', 'likeCount', 'like_count']) || '')
+    || readDomActionCount(['点赞', '赞'], ['.like-wrapper .count', '.like-wrapper', '[class*="like"] .count']);
+  const collectedCount = parseCount(readObjectValue(stateInteractInfo, ['collectedCount', 'collected_count', 'collectCount', 'collect_count']) || '')
+    || readDomActionCount(['收藏'], ['.collect-wrapper .count', '.collect-wrapper', '[class*="collect"] .count']);
+  const sharedCount = parseCount(readObjectValue(stateInteractInfo, ['sharedCount', 'shared_count', 'shareCount', 'share_count']) || '')
+    || readDomActionCount(['分享'], ['.share-wrapper .count', '.share-wrapper', '[class*="share"] .count']);
 
   const commentNodes = Array.from(document.querySelectorAll('.comment-item'));
   const comments = commentNodes.map((el, index) => {
@@ -117,9 +241,15 @@ export const XHS_CAPTURE_NOTE_STATE_EXPRESSION = `
   return JSON.stringify({
     location: window.location.href,
     note: {
-      title: clean(title),
+      title: clean(stateNote?.title || title),
       cover,
       commentCount,
+      interactInfo: {
+        likedCount,
+        collectedCount,
+        commentCount,
+        sharedCount,
+      },
     },
     comments,
     hasMore: Boolean(document.body.innerText.includes('查看更多评论') || document.body.innerText.includes('正在加载')),

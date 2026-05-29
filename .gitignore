@@ -45,3 +45,4 @@ public/bin/*
 
 sh/*
 project/web/.cursor/
+.worktree/

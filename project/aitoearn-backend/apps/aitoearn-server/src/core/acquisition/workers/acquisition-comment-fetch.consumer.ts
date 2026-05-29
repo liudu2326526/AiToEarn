@@ -6,6 +6,7 @@ import { Job } from 'bullmq'
 import { randomUUID } from 'crypto'
 import { AcquisitionPlatform } from '../acquisition.constants'
 import { AcquisitionService } from '../acquisition.service'
+import { WorkDataService } from '../work-data/work-data.service'
 
 @QueueProcessor(QueueName.AcquisitionCommentFetch, {
   concurrency: 3,
@@ -18,6 +19,7 @@ export class AcquisitionCommentFetchConsumer extends WorkerHost {
   constructor(
     private readonly acquisitionService: AcquisitionService,
     private readonly redlockService: RedlockService,
+    private readonly workDataService: WorkDataService,
   ) {
     super()
   }
@@ -33,9 +35,9 @@ export class AcquisitionCommentFetchConsumer extends WorkerHost {
     }
 
     try {
-      return await this.acquisitionService.fetchNow(userId, {
+      return await this.workDataService.processWorkerFetch(userId, {
         accountId,
-        platform: platform as AcquisitionPlatform,
+        platform,
         postUrl,
         postId,
         cursor,

@@ -4,6 +4,8 @@ import { AcquisitionPostBackfillData, QueueName, QueueProcessor } from '@yikart/
 import { Job } from 'bullmq'
 import { AcquisitionPlatform } from '../acquisition.constants'
 import { AcquisitionService } from '../acquisition.service'
+import { WorkDataService } from '../work-data/work-data.service'
+import { AppException, ResponseCode } from '@yikart/common'
 
 @QueueProcessor(QueueName.AcquisitionPostBackfill, {
   concurrency: 3,
@@ -13,7 +15,10 @@ import { AcquisitionService } from '../acquisition.service'
 export class AcquisitionPostBackfillConsumer extends WorkerHost {
   private readonly logger = new Logger(AcquisitionPostBackfillConsumer.name)
 
-  constructor(private readonly acquisitionService: AcquisitionService) {
+  constructor(
+    private readonly acquisitionService: AcquisitionService,
+    private readonly workDataService: WorkDataService,
+  ) {
     super()
   }
 
@@ -24,9 +29,14 @@ export class AcquisitionPostBackfillConsumer extends WorkerHost {
       return
     }
 
-    return await this.acquisitionService.fetchNow(userId, {
+    if (!postUrl) {
+      this.logger.warn(`Post URL is missing for backfill job ${job.id}`)
+      throw new AppException(ResponseCode.PublishedBackfillMissingPostUrl)
+    }
+
+    return await this.workDataService.processPostBackfill(userId, {
       accountId,
-      platform: platform as AcquisitionPlatform,
+      platform,
       postUrl,
       postId,
     })

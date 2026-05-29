@@ -12,4 +12,28 @@ export class LeadActivityLogRepository extends BaseRepository<LeadActivityLog> {
   ) {
     super(leadActivityLogModel)
   }
+
+  async append(data: {
+    userId: string
+    leadId: string
+    action: string
+    operatorId: string
+    fromValue?: string
+    toValue?: string
+    note?: string
+  }) {
+    return await this.create({
+      userId: data.userId,
+      leadId: data.leadId,
+      action: data.action as any,
+      operatorId: data.operatorId,
+      fromValue: data.fromValue || '',
+      toValue: data.toValue || '',
+      note: data.note || '',
+    })
+  }
+
+  async listByLeadId(userId: string, leadId: string, limit = 100) {
+    return await this.find({ userId, leadId } as any, { sort: { createdAt: -1 }, limit })
+  }
 }
