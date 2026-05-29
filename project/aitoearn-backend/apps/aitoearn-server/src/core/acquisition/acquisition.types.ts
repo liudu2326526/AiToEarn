@@ -50,6 +50,7 @@ export interface AcquisitionFetchResult {
   hasMore: boolean
   capabilityStatus: AcquisitionCapabilityStatus
   capabilityReason: string
+  fetchBatch: string
 }
 
 export interface PersistedAcquisitionFetchResult extends AcquisitionFetchResult {

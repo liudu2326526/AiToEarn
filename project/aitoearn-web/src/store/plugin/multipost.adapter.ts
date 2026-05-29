@@ -76,6 +76,13 @@ interface MultiPostProbeResult {
   trusted: boolean
 }
 
+interface MultiPostPublishAcceptedResult {
+  accepted?: boolean
+  traceId?: string
+  tabs?: unknown[]
+  error?: string
+}
+
 function createTraceId() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID()
@@ -249,12 +256,13 @@ async function sendMultiPostRequest<TData, TResult>(
   action: MultiPostAction,
   data: TData,
   timeout = MULTIPOST_REQUEST_TIMEOUT,
+  traceIdOverride?: string,
 ) {
   if (typeof window === 'undefined') {
     throw new TypeError('MultiPost extension is only available in browser')
   }
 
-  const traceId = createTraceId()
+  const traceId = traceIdOverride || createTraceId()
   const request: MultiPostExternalRequest<TData> = {
     type: 'request',
     traceId,
@@ -347,29 +355,32 @@ export async function publishWithMultiPost(
   })
 
   const syncData = buildMultiPostSyncData(params)
-  const response = await sendMultiPostRequest<MultiPostSyncData, { tabs?: unknown[] }>(
+  const response = await sendMultiPostRequest<MultiPostSyncData, MultiPostPublishAcceptedResult>(
     'MULTIPOST_EXTENSION_PUBLISH_NOW',
     syncData,
     10_000,
+    params.requestId,
   )
 
-  if (response.code !== 0) {
-    throw new Error(response.message || 'MultiPost 发布失败')
+  if (response.code !== 0 || response.data?.accepted === false) {
+    throw new Error(response.data?.error || response.message || 'MultiPost 发布任务创建失败')
   }
 
   onProgress?.({
     stage: 'complete',
     progress: 100,
-    message: '已交给 MultiPost 扩展处理',
+    message: 'MultiPost 已接收发布任务，正在等待小红书页面返回最终结果',
     timestamp: Date.now(),
   })
 
   return {
     success: true,
-    workId: params.requestId || `multipost-${Date.now()}`,
+    workId: params.requestId || response.data?.traceId || `multipost-${Date.now()}`,
     publishTime: Date.now(),
     platformData: {
       provider: 'multipost',
+      accepted: true,
+      traceId: response.data?.traceId,
       tabs: response.data?.tabs,
     },
   }

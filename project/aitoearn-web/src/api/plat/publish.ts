@@ -35,6 +35,22 @@ export function updatePublishRecordLinkApi(data: UpdatePublishRecordLinkParams) 
   })
 }
 
+// 更新插件发布结果
+export function updatePluginPublishResultApi(data: {
+  id: string
+  success: boolean
+  dataId?: string
+  workLink?: string
+  pendingConfirmation?: boolean
+  errorMsg?: string
+}) {
+  return request<{ id: string }>({
+    url: 'plat/publish/pluginResult',
+    method: 'POST',
+    data,
+  })
+}
+
 // 创建发布任务
 export function apiCreatePublish(data: PublishParams) {
   const { topics, cleanedString } = parseTopicString(data.desc || '')

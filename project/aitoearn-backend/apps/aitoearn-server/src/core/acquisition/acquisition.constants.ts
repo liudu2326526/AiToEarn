@@ -23,3 +23,9 @@ export enum AcquisitionCapabilityStatus {
 }
 
 export const ACQUISITION_PROVIDERS = Symbol('ACQUISITION_PROVIDERS')
+
+export const METRIC_KEY_COMMENT_COUNT = 'commentCount'
+export const METRIC_KEY_LIKE_COUNT = 'likeCount'
+export const METRIC_KEY_SHARE_COUNT = 'shareCount'
+export const METRIC_KEY_VIEW_COUNT = 'viewCount'
+export const METRIC_KEY_COLLECT_COUNT = 'collectCount'

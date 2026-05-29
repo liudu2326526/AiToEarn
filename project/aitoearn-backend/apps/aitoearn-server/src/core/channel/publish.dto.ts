@@ -162,6 +162,16 @@ export const UpdatePublishRecordWorkLinkSchema = z.object({
 })
 export class UpdatePublishRecordWorkLinkDto extends createZodDto(UpdatePublishRecordWorkLinkSchema) {}
 
+export const UpdatePluginPublishResultSchema = z.object({
+  id: z.string().describe('发布记录ID'),
+  success: z.boolean().describe('插件发布是否成功'),
+  dataId: z.string().optional().describe('平台作品ID或插件请求ID'),
+  workLink: z.string().optional().describe('作品链接'),
+  pendingConfirmation: z.boolean().optional().describe('插件已点击发布但尚未拿到平台确认信号'),
+  errorMsg: z.string().optional().describe('失败原因'),
+})
+export class UpdatePluginPublishResultDto extends createZodDto(UpdatePluginPublishResultSchema) {}
+
 export const createPublishRecordSchema = z.object({
   flowId: z.string().optional(),
   dataId: z.string(),

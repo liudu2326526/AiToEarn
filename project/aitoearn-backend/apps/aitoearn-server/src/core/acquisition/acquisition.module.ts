@@ -22,6 +22,8 @@ import { XhsBridgeAcquisitionProvider } from './providers/xhs/xhs-bridge-acquisi
 import { SnapshotPersistenceService } from './snapshot-persistence.service'
 import { AcquisitionCommentFetchConsumer } from './workers/acquisition-comment-fetch.consumer'
 import { AcquisitionPostBackfillConsumer } from './workers/acquisition-post-backfill.consumer'
+import { WorkDataController } from './work-data/work-data.controller'
+import { WorkDataService } from './work-data/work-data.service'
 
 @Module({
   imports: [
@@ -36,6 +38,7 @@ import { AcquisitionPostBackfillConsumer } from './workers/acquisition-post-back
   controllers: [
     AcquisitionController,
     AcquisitionContentController,
+    WorkDataController,
   ],
   providers: [
     AcquisitionService,
@@ -51,6 +54,7 @@ import { AcquisitionPostBackfillConsumer } from './workers/acquisition-post-back
     ContentReviewService,
     ContentScheduleService,
     StrategyTemplateService,
+    WorkDataService,
     {
       provide: ACQUISITION_PROVIDERS,
       useFactory: (

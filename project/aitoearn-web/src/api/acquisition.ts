@@ -39,3 +39,17 @@ export async function fetchAcquisitionWork(data: AcquisitionFetchRequest) {
   }
   return response.data
 }
+
+export interface AcquisitionCapabilityResponse {
+  status: string
+  reason: string
+  meta?: Record<string, any>
+}
+
+export async function getAcquisitionCapability(params: { accountId: string, platform: string }) {
+  const response = await http.get<AcquisitionCapabilityResponse>('acquisition/capability', params)
+  if (!response || response.code !== 0) {
+    throw new Error(response?.message || 'get acquisition capability failed')
+  }
+  return response.data
+}

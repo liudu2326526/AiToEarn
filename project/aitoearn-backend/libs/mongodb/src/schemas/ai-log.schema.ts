@@ -524,7 +524,7 @@ export class AiLog extends WithTimestampSchema {
   @Prop({
     required: true,
     enum: AiLogStatus,
-    type: Number,
+    type: String,
   })
   status: AiLogStatus
 

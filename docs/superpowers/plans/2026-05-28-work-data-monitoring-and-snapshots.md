@@ -193,6 +193,8 @@ export const MonitoredPostSchema = SchemaFactory.createForClass(MonitoredPost)
 MonitoredPostSchema.index({ userId: 1, platform: 1, accountId: 1, postId: 1 }, { unique: true })
 ```
 
+Keep the `id: string` declaration without `@Prop`. This follows existing schemas such as `PostSnapshot`; `DEFAULT_SCHEMA_OPTIONS` already enables virtual `id`, `toJSON.virtuals`, and `toObject.virtuals`.
+
 - [ ] **Step 4: Add repository**
 
 Create `monitored-post.repository.ts`:
@@ -308,16 +310,19 @@ import { BaseRepository } from './base.repository'
 
 @Injectable()
 export class MonitoredPostFetchLogRepository extends BaseRepository<MonitoredPostFetchLog> {
+  private readonly billableFetchStatuses = ['ready', 'failed', 'permission_required', 'pending_confirmation']
+
   constructor(
     @InjectModel(MonitoredPostFetchLog.name, DB_CONNECTION_NAME) private fetchLogModel: Model<MonitoredPostFetchLog>,
   ) {
     super(fetchLogModel)
   }
 
-  async countAccountFetchesSince(userId: string, accountId: string, since: Date) {
+  async countBillableAccountFetchesSince(userId: string, accountId: string, since: Date) {
     return await this.fetchLogModel.countDocuments({
       userId,
       accountId,
+      fetchStatus: { $in: this.billableFetchStatuses },
       fetchedAt: { $gte: since },
     })
   }
@@ -645,14 +650,18 @@ import { WorkDataController } from './work-data/work-data.controller'
 import { WorkDataService } from './work-data/work-data.service'
 
 controllers: [
+  // ...existing controllers,
   AcquisitionController,
   AcquisitionContentController,
   WorkDataController,
 ],
 providers: [
+  // ...existing providers,
   WorkDataService,
 ]
 ```
+
+Append `WorkDataController` and `WorkDataService` to the existing arrays. Do not replace the current acquisition module controllers/providers.
 
 - [ ] **Step 7: Verify backend tests**
 
@@ -767,7 +776,7 @@ it('does not fetch when the account daily comment fetch limit is reached', async
     enableCommentFetch: true,
     dailyCommentFetchLimit: 2,
   })
-  monitoredPostFetchLogRepository.countAccountFetchesSince.mockResolvedValue(2)
+  monitoredPostFetchLogRepository.countBillableAccountFetchesSince.mockResolvedValue(2)
 
   const result = await service.fetchNow('user-1', 'monitored-post-id')
 
@@ -802,13 +811,20 @@ if (config && config.enableCommentFetch === false) {
 
 - [ ] **Step 3: Apply daily fetch limit**
 
-Use `MonitoredPostFetchLogRepository` instead of `MonitoredPost.lastFetchedAt`; the latter only stores the latest fetch and cannot count same-day attempts.
+Use `MonitoredPostFetchLogRepository` instead of `MonitoredPost.lastFetchedAt`; the latter only stores the latest fetch and cannot count same-day attempts. The product-facing "daily" boundary is the Asia/Shanghai calendar day, because this workflow is currently aimed at domestic operations.
 
 ```ts
+private getStartOfShanghaiDay(now = new Date()) {
+  const shanghaiOffsetMs = 8 * 60 * 60 * 1000
+  const shanghaiNow = new Date(now.getTime() + shanghaiOffsetMs)
+  // Shift to UTC+8, truncate with UTC methods, then shift back to UTC storage time.
+  shanghaiNow.setUTCHours(0, 0, 0, 0)
+  return new Date(shanghaiNow.getTime() - shanghaiOffsetMs)
+}
+
 if (config?.dailyCommentFetchLimit !== undefined && config.dailyCommentFetchLimit >= 0) {
-  const startOfUtcDay = new Date()
-  startOfUtcDay.setUTCHours(0, 0, 0, 0)
-  const usedToday = await this.monitoredPostFetchLogRepository.countAccountFetchesSince(userId, post.accountId, startOfUtcDay)
+  const startOfDay = this.getStartOfShanghaiDay()
+  const usedToday = await this.monitoredPostFetchLogRepository.countBillableAccountFetchesSince(userId, post.accountId, startOfDay)
 
   if (usedToday >= config.dailyCommentFetchLimit) {
     const reason = 'daily comment fetch limit reached'
@@ -828,6 +844,8 @@ if (config?.dailyCommentFetchLimit !== undefined && config.dailyCommentFetchLimi
   }
 }
 ```
+
+Keep logging rejected attempts with `fetchStatus: 'not_configured'` for auditability, but do not count them against the daily fetch budget. `countBillableAccountFetchesSince()` only counts statuses that indicate the request reached a real acquisition provider.
 
 - [ ] **Step 4: Verify**
 
@@ -994,19 +1012,19 @@ The drawer should include:
 
 - [ ] **Step 5: Add source badge mapping**
 
-Reuse and replace the existing `acquisition.pages.workData.*` keys in `route.json`; do not create a second parallel key tree for the same `/work-data` page. After `AcquisitionRoadmapPage` no longer renders `workData`, remove any `workData` roadmap-only keys that are no longer referenced.
+Reuse and replace the existing `acquisition.pages.workData.*` keys in `route.json`; do not create a second parallel key tree for the same `/work-data` page. Before removing any old roadmap-only `workData` key, run `rg -n "type=\"workData\"|workData\\b" project/aitoearn-web/src` and only delete keys after confirming no other `AcquisitionRoadmapPage type="workData"` entry still references them.
 
 ```ts
 const sourceLabelMap = {
-  xhs_plugin_api: '小红书插件接口',
-  xhs_bridge_capture: 'Bridge 页面捕获',
-  douyin_open_api: '抖音 OpenAPI',
-  manual_snapshot: '人工快照',
-  demo_seed: '演示数据',
+  xhs_plugin_api: t('workData.dataSource.xhsPluginApi'),
+  xhs_bridge_capture: t('workData.dataSource.xhsBridgeCapture'),
+  douyin_open_api: t('workData.dataSource.douyinOpenApi'),
+  manual_snapshot: t('workData.dataSource.manualSnapshot'),
+  demo_seed: t('workData.dataSource.demoSeed'),
 }
 ```
 
-Also add English labels in `en/route.json`.
+Add both Chinese and English labels in `zh-CN/route.json` and `en/route.json`; do not hard-code Chinese labels inside the component.
 
 - [ ] **Step 6: Verify frontend**
 
@@ -1070,6 +1088,20 @@ Use `/acquisition/capability?platform=xhs&accountId=...`, `/douyin`, `/kwai` and
 
 - [ ] **Step 1: Ensure manual fetch sets `fetching` first**
 
+Resolve the monitored post by `userId` and id, then build the existing `AcquisitionService.fetchNow()` request from the monitored-post fields:
+
+```ts
+const post = await this.monitoredPostRepository.findOne({ _id: monitoredPostId, userId })
+if (!post) throw new NotFoundException('Monitored post not found')
+
+const fetchRequest = {
+  platform: post.platform,
+  accountId: post.accountId,
+  postUrl: post.postUrl,
+  postId: post.postId,
+}
+```
+
 Before calling provider:
 
 ```ts
@@ -1077,6 +1109,8 @@ await this.monitoredPostRepository.updateFetchResult(post.id, {
   fetchStatus: 'fetching',
   capabilityReason: '',
 })
+
+const result = await this.acquisitionService.fetchNow(userId, fetchRequest)
 ```
 
 - [ ] **Step 2: Ensure all result states update monitored post**
@@ -1157,6 +1191,8 @@ Verify:
 - Detail drawer shows snapshots and comments.
 - Comment rows show data source and fetch batch.
 - XHS/Douyin/Kwai capability states are visible.
+- Daily comment fetch limits reset on the Asia/Shanghai calendar day.
+- English UI does not show Chinese-only data source labels.
 
 - [ ] **API smoke test**
 

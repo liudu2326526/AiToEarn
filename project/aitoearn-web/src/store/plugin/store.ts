@@ -22,7 +22,8 @@ import lodash from 'lodash'
 import { create } from 'zustand'
 import { combine } from 'zustand/middleware'
 import { createOrUpdateAccountApi } from '@/api/account'
-import { apiCreatePublishRecord } from '@/api/plat/publish'
+import { apiCreatePublishRecord, updatePluginPublishResultApi } from '@/api/plat/publish'
+import { PublishStatus } from '@/api/plat/types/publish.types'
 import { ClientType } from '@/app/[lng]/accounts/accounts.enums'
 import { AccountStatus } from '@/app/config/accountConfig'
 import { PlatType } from '@/app/config/platConfig'
@@ -218,6 +219,7 @@ async function startWxSphLinkPolling(params: {
 export type PlatformProgressMap = Map<string, ProgressEvent>
 export type PluginVersionLoadStatus = 'idle' | 'loading' | 'ready' | 'unavailable'
 const FALLBACK_PLUGIN_VERSION = '3.0.0'
+let multiPostResultListenerRegistered = false
 
 function comparePluginVersions(currentVersion: string, latestVersion: string) {
   const currentParts = currentVersion.split('.').map(part => Number.parseInt(part, 10) || 0)
@@ -266,6 +268,8 @@ export interface IPluginStore {
   pluginVersionStatus: PluginVersionLoadStatus
   /** 插件是否可更新 */
   pluginNeedsUpdate: boolean
+  /** MultiPost traceId 到发布记录ID的映射 */
+  multiPostRecordMap: Map<string, string>
 }
 
 const store: IPluginStore = {
@@ -289,6 +293,7 @@ const store: IPluginStore = {
   pluginVersion: null,
   pluginVersionStatus: 'idle',
   pluginNeedsUpdate: false,
+  multiPostRecordMap: new Map(),
 }
 
 function getStore() {
@@ -301,6 +306,77 @@ export const usePluginStore = create(
     const methods = {
       clear() {
         set({ ...getStore() })
+      },
+
+      /** 注册 MultiPost 最终发布结果监听 */
+      registerMultiPostResultListener() {
+        if (multiPostResultListenerRegistered || typeof window === 'undefined')
+          return
+
+        multiPostResultListenerRegistered = true
+        window.addEventListener('message', async (event) => {
+          if (event.source !== window)
+            return
+          if (event.data?.action !== 'MULTIPOST_EXTENSION_PUBLISH_RESULT')
+            return
+
+          const result = event.data.data as {
+            traceId: string
+            success: boolean
+            workLink?: string
+            workId?: string
+            pendingConfirmation?: boolean
+            error?: string
+          }
+          const recordId = get().multiPostRecordMap.get(result.traceId)
+          if (!recordId)
+            return
+
+          try {
+            await updatePluginPublishResultApi({
+              id: recordId,
+              success: result.success,
+              dataId: result.workId || result.traceId,
+              workLink: result.workLink,
+              pendingConfirmation: result.pendingConfirmation,
+              errorMsg: result.error,
+            })
+
+            if (!result.success) {
+              methods.updatePlatformTaskByRequestId(result.traceId, {
+                status: PlatformTaskStatus.ERROR,
+                error: result.error || 'MultiPost 发布失败',
+                result: {
+                  success: false,
+                  failReason: result.error || 'MultiPost 发布失败',
+                },
+                endTime: Date.now(),
+              })
+            }
+            else if (!result.pendingConfirmation) {
+              methods.updatePlatformTaskByRequestId(result.traceId, {
+                status: PlatformTaskStatus.COMPLETED,
+                result: {
+                  success: true,
+                  workId: result.workId || result.traceId,
+                  shareLink: result.workLink,
+                  platformData: result,
+                },
+                endTime: Date.now(),
+              })
+            }
+
+            const nextMap = new Map(get().multiPostRecordMap)
+            // pendingConfirmation 表示已提交但等待回扫 workLink，保留映射等待最终结果
+            if (!result.pendingConfirmation) {
+              nextMap.delete(result.traceId)
+              set({ multiPostRecordMap: nextMap })
+            }
+          }
+          catch (error) {
+            console.error('更新 MultiPost 发布结果失败:', error)
+          }
+        })
       },
 
       /** 打开插件弹框 */
@@ -500,6 +576,7 @@ export const usePluginStore = create(
        * 2. 检查插件状态，未安装或未授权则轮询，已就绪则刷新账号
        */
       async init() {
+        methods.registerMultiPostResultListener()
         // 设置初始化状态
         set({ isInitializing: true })
 
@@ -712,8 +789,13 @@ export const usePluginStore = create(
         if (status === Status.NOT_INSTALLED)
           throw new Error(ERROR_MESSAGES.PLUGIN_NOT_INSTALLED)
 
-        if (status !== Status.READY)
-          throw new Error(ERROR_MESSAGES.PLUGIN_NOT_READY)
+        if (status !== Status.READY) {
+          // 状态不是 READY 时,主动触发一次权限检查(含 trust-domain 弹窗)
+          const granted = await methods.checkPermission(true)
+          if (!granted) {
+            throw new Error(ERROR_MESSAGES.PLUGIN_NOT_READY)
+          }
+        }
 
         // 检查该账号是否正在发布（同一平台不同账号可以同时发布）
         if (publishingPlatforms.has(publishKey))
@@ -963,6 +1045,7 @@ export const usePluginStore = create(
        * @returns Promise<void>
        */
       async executePluginPublish(params: ExecutePluginPublishParams): Promise<void> {
+        methods.registerMultiPostResultListener()
         const { items, platformTaskIdMap, publishTime, onProgress, onComplete, userTaskId, materialId } = params
         let firstPublishRecordId: string | undefined
 
@@ -1125,6 +1208,8 @@ export const usePluginStore = create(
             })
 
             // 发布成功，更新任务状态
+            const multiPostPlatformData = result.platformData as { provider?: string, traceId?: string } | undefined
+            const isMultiPostResult = multiPostPlatformData?.provider === 'multipost'
             methods.updatePlatformTaskByRequestId(requestId, {
               status: PlatformTaskStatus.COMPLETED,
               result: {
@@ -1140,7 +1225,7 @@ export const usePluginStore = create(
             onProgress?.({
               stage: 'complete',
               progress: 100,
-              message: '发布成功',
+              message: isMultiPostResult ? '已提交到小红书，等待平台审核' : '发布成功',
               timestamp: Date.now(),
               accountId,
               platform,
@@ -1156,6 +1241,7 @@ export const usePluginStore = create(
             set({ isCreatingRecord: true })
             try {
               const wxSphAnchor = platform === PlatType.WxSph ? getWxSphLinkAnchor(result) : null
+              const multiPostTraceId = multiPostPlatformData?.traceId || requestId
               const recordRes = await apiCreatePublishRecord({
                 flowId: generateUUID(),
                 type: item.params.video ? 'video' : 'article',
@@ -1176,11 +1262,13 @@ export const usePluginStore = create(
                     ?.map(v => v.ossUrl)
                     .filter((url): url is string => url !== undefined) || [],
                 topics: item.params.topics || [],
-                status: 1, // 已发布
-                dataId: wxSphAnchor?.mediaMd5sum || `${result.workId}`,
-                workLink: result.shareLink,
-                linkStatus: wxSphAnchor && !result.shareLink ? 'pending' : undefined,
-                linkMeta: wxSphAnchor || undefined,
+                status: PublishStatus.RELEASED,
+                dataId: isMultiPostResult ? multiPostTraceId : wxSphAnchor?.mediaMd5sum || `${result.workId}`,
+                workLink: isMultiPostResult ? '' : result.shareLink,
+                linkStatus: isMultiPostResult ? 'pending' : (wxSphAnchor && !result.shareLink ? 'pending' : undefined),
+                linkMeta: isMultiPostResult
+                  ? { provider: 'multipost', traceId: multiPostTraceId }
+                  : wxSphAnchor || undefined,
                 uid: item.account.uid,
                 // @ts-ignore
                 publishTime: publishTime || dayjs(Date.now()).utc().format(),
@@ -1191,7 +1279,13 @@ export const usePluginStore = create(
                 if (!firstPublishRecordId) {
                   firstPublishRecordId = recordRes.data.id
                 }
-                if (platform === PlatType.WxSph) {
+                if (isMultiPostResult) {
+                  const nextMap = new Map(get().multiPostRecordMap)
+                  nextMap.set(multiPostTraceId, recordRes.data.id)
+                  nextMap.set(requestId, recordRes.data.id)
+                  set({ multiPostRecordMap: nextMap })
+                }
+                else if (platform === PlatType.WxSph) {
                   startWxSphLinkPolling({
                     recordId: recordRes.data.id,
                     accountId,

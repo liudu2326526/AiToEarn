@@ -8,6 +8,7 @@
 import { Body, Controller, Delete, Get, Logger, Param, Post, Query } from '@nestjs/common'
 import { ApiTags } from '@nestjs/swagger'
 import { GetToken, Public, TokenInfo } from '@yikart/aitoearn-auth'
+import { QueueService } from '@yikart/aitoearn-queue'
 import { AssetsService } from '@yikart/assets'
 import { ApiDoc, AppException, ParseObjectIdPipe, ResponseCode, TableDto } from '@yikart/common'
 import { MetricEventHelperService, MetricEventName } from '@yikart/helpers'
@@ -23,6 +24,7 @@ import {
   CreatePublishRecordDto,
   PublishDayInfoListFiltersDto,
   PubRecordListFilterDto,
+  UpdatePluginPublishResultDto,
   UpdatePublishRecordTimeDto,
   UpdatePublishRecordWorkLinkDto,
   UpdatePublishTaskDto,
@@ -44,6 +46,7 @@ export class PublishController {
     private readonly assetsService: AssetsService,
     private readonly platformService: PlatformService,
     private readonly metricEventHelperService: MetricEventHelperService,
+    private readonly queueService: QueueService,
   ) { }
 
   @ApiDoc({
@@ -153,6 +156,84 @@ export class PublishController {
       throw new AppException(ResponseCode.PublishRecordNotFound)
     }
     return res
+  }
+
+  @ApiDoc({
+    summary: '更新插件发布结果',
+    body: UpdatePluginPublishResultDto.schema,
+  })
+  @Post('pluginResult')
+  async updatePluginPublishResult(@GetToken() token: TokenInfo, @Body() data: UpdatePluginPublishResultDto) {
+    data = plainToInstance(UpdatePluginPublishResultDto, data)
+    const publishRecord = await this.publishRecordService.getPublishRecordInfo(data.id)
+    if (!publishRecord || publishRecord.userId !== token.id) {
+      throw new AppException(ResponseCode.PublishRecordNotFound)
+    }
+
+    if (!data.success) {
+      return this.publishRecordService.failById(data.id, data.errorMsg || 'plugin publish failed')
+    }
+
+    const finalDataId = data.dataId || publishRecord.dataId || data.id
+
+    if (data.pendingConfirmation || !data.workLink) {
+      await this.publishRecordService.updateStatusById(data.id, PublishStatus.PUBLISHING)
+      return this.publishRecordService.updateWorkLinkById(data.id, {
+        dataId: finalDataId,
+        linkStatus: PublishRecordLinkStatus.PENDING,
+        linkMeta: {
+          ...(publishRecord.linkMeta || {}),
+          pendingConfirmation: true,
+        },
+      })
+    }
+
+    // 有 workLink：先入监控(审核中链接暂不可访问也先记录，等审核通过后再抓取数据)
+    const acquisitionPlatform = this.toAcquisitionPlatform(publishRecord.accountType)
+    if (acquisitionPlatform && publishRecord.accountId && publishRecord.userId) {
+      await this.queueService.addAcquisitionPostBackfillJob({
+        userId: publishRecord.userId,
+        accountId: publishRecord.accountId,
+        platform: acquisitionPlatform,
+        postUrl: data.workLink,
+      })
+    }
+
+    let workLinkInfo
+    try {
+      workLinkInfo = await this.platformService.getWorkLinkInfo(
+        publishRecord.accountType,
+        data.workLink,
+        finalDataId,
+        publishRecord.accountId,
+      )
+    }
+    catch (error) {
+      // 审核中等场景链接暂不可访问：作品已入监控，发布记录标记 PENDING 等待后续校验
+      this.logger.warn(`Plugin publish result has unverified work link: ${data.workLink}`)
+      await this.publishRecordService.updateStatusById(data.id, PublishStatus.PUBLISHING)
+      return this.publishRecordService.updateWorkLinkById(data.id, {
+        dataId: finalDataId,
+        workLink: data.workLink,
+        linkStatus: PublishRecordLinkStatus.PENDING,
+        linkError: error instanceof Error ? error.message : 'invalid plugin work link',
+        linkMeta: {
+          ...(publishRecord.linkMeta || {}),
+          pendingConfirmation: true,
+        },
+      })
+    }
+
+    return await this.publishRecordService.completeById(publishRecord, workLinkInfo.dataId, {
+      workLink: workLinkInfo.resolvedUrl || data.workLink,
+    })
+  }
+
+  private toAcquisitionPlatform(accountType: unknown): 'xhs' | 'douyin' | 'kwai' | null {
+    if (accountType === 'xhs') return 'xhs'
+    if (accountType === 'douyin') return 'douyin'
+    if (accountType === 'KWAI' || accountType === 'kwai') return 'kwai'
+    return null
   }
 
   @ApiDoc({

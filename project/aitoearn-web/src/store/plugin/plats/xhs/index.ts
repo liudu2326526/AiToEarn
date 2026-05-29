@@ -26,6 +26,7 @@ import type { XhsBaseResponse, XhsCommentResponse } from './types'
 import { PlatType } from '@/app/config/platConfig'
 import { getCommentList, getSubCommentList } from './comment'
 import { getHomeFeedList, homeFeedCursor } from './homeFeed'
+import { getUserPostedNotes, type UserPostedResult } from './userPosted'
 import { getWorkDetailViaAutoclawBridge } from './workDetail'
 import { isLegacyXhsPluginAvailable, requestLegacyXhsApi } from './xhsBridge'
 
@@ -213,6 +214,15 @@ class XhsPlatformInteraction implements IPlatformInteraction {
    */
   async getSubCommentList(params: SubCommentListParams): Promise<CommentListResult> {
     return getSubCommentList(params)
+  }
+
+  /**
+   * 获取个人主页作品列表(含每条作品的新鲜 xsec_token 与互动指标)
+   * @param userId 作者主页 userId(= 账号 uid)
+   * @param maxCount 最多拉取条数
+   */
+  async getUserPostedNotes(userId: string, maxCount?: number): Promise<UserPostedResult> {
+    return getUserPostedNotes(userId, maxCount)
   }
 }
 

@@ -93,6 +93,7 @@ assert.deepEqual(videoSyncData.data, {
   tags: ['Seedance'],
   scheduledPublishTime: 1800000000000,
 })
+assert.deepEqual(imageSyncData.data.videos, [])
 
 assert.throws(
   () => buildMultiPostSyncData({ platform: 'wxSph', type: 'image', images: ['https://cdn.example.com/a.png'] }),

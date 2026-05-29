@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
-import { Model } from 'mongoose'
+import { FilterQuery, Model } from 'mongoose'
 import { DB_CONNECTION_NAME } from '../common'
 import { PostSnapshot } from '../schemas'
 import { BaseRepository } from './base.repository'
@@ -28,5 +28,9 @@ export class PostSnapshotRepository extends BaseRepository<PostSnapshot> {
       { accountId, platform, postId },
       { sort: { fetchedAt: -1 }, limit },
     )
+  }
+
+  async findLatest(accountId: string, platform: string, postId: string) {
+    return await this.findOne({ accountId, platform, postId }, { sort: { fetchedAt: -1 } })
   }
 }

@@ -509,7 +509,19 @@ export const messages: Record<ResponseCode, Record<Locale, MessageValue>> = {
   },
   [ResponseCode.ScriptTemplateNotFound]: {
     'en-US': 'Script template not found',
-    'zh-CN': '话术模板未找到',
+    'zh-CN': '脚本模板未找到',
+  },
+  [ResponseCode.MonitoredPostNotFound]: {
+    'en-US': 'Monitored post not found',
+    'zh-CN': '监控作品未找到',
+  },
+  [ResponseCode.MonitoredPostUrlUnparseable]: {
+    'en-US': 'Cannot parse postId from postUrl',
+    'zh-CN': '无法从作品链接中解析出 ID',
+  },
+  [ResponseCode.PublishedBackfillMissingPostUrl]: {
+    'en-US': 'postUrl is required for backfill to monitored posts',
+    'zh-CN': '作品回填需要有效的链接',
   },
 
   // 19000 (api-key / relay)

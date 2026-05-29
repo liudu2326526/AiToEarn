@@ -40,6 +40,7 @@ export class DouyinAcquisitionProvider implements AcquisitionProvider {
         hasMore: false,
         capabilityStatus: capability.status,
         capabilityReason: capability.reason,
+        fetchBatch: request.fetchBatch || '',
       }
     }
 
@@ -51,6 +52,7 @@ export class DouyinAcquisitionProvider implements AcquisitionProvider {
         hasMore: false,
         capabilityStatus: AcquisitionCapabilityStatus.PendingAuthorization,
         capabilityReason: 'Douyin account is not authorized',
+        fetchBatch: request.fetchBatch || '',
       }
     }
 
@@ -89,6 +91,7 @@ export class DouyinAcquisitionProvider implements AcquisitionProvider {
       hasMore: Boolean(commentList.has_more),
       capabilityStatus: AcquisitionCapabilityStatus.Ready,
       capabilityReason: '',
+      fetchBatch: request.fetchBatch || '',
     }
   }
 

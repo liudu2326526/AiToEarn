@@ -38,7 +38,7 @@ export class QrCodeArtImage extends WithTimestampSchema {
   @Prop({ required: false, type: String })
   size?: string
 
-  @Prop({ required: true, enum: AiLogStatus, default: AiLogStatus.Generating, type: Number })
+  @Prop({ required: true, enum: AiLogStatus, default: AiLogStatus.Generating, type: String })
   status: AiLogStatus
 
   @Prop({ required: false, type: String })
