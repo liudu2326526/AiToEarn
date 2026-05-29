@@ -17,6 +17,11 @@ import { ContentScheduleService } from './content/content-schedule.service'
 import { HookSelectionService } from './content/hook-selection.service'
 import { PlatformContentAdapterService } from './content/platform-content-adapter.service'
 import { StrategyTemplateService } from './content/strategy-template.service'
+import { AcquisitionLeadsController } from './leads/acquisition-leads.controller'
+import { LeadManagementService } from './leads/lead-management.service'
+import { LeadMaterializationService } from './leads/lead-materialization.service'
+import { ReplyExecutionService } from './leads/reply-execution.service'
+import { ReplySuggestionService } from './leads/reply-suggestion.service'
 import { DouyinAcquisitionProvider } from './providers/douyin/douyin-acquisition.provider'
 import { XhsBridgeAcquisitionProvider } from './providers/xhs/xhs-bridge-acquisition.provider'
 import { SnapshotPersistenceService } from './snapshot-persistence.service'
@@ -39,6 +44,7 @@ import { WorkDataService } from './work-data/work-data.service'
     AcquisitionController,
     AcquisitionContentController,
     WorkDataController,
+    AcquisitionLeadsController,
   ],
   providers: [
     AcquisitionService,
@@ -55,6 +61,10 @@ import { WorkDataService } from './work-data/work-data.service'
     ContentScheduleService,
     StrategyTemplateService,
     WorkDataService,
+    LeadMaterializationService,
+    LeadManagementService,
+    ReplySuggestionService,
+    ReplyExecutionService,
     {
       provide: ACQUISITION_PROVIDERS,
       useFactory: (

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, Optional } from '@nestjs/common'
 import {
   CommentSnapshotRepository,
   MonitoredPost,
@@ -16,6 +16,7 @@ import { PersistedAcquisitionFetchResult } from '../acquisition.types'
 import { AppException, ResponseCode } from '@yikart/common'
 import { AccountRepository } from '@yikart/mongodb'
 import { FilterQuery } from 'mongoose'
+import { LeadMaterializationService } from '../leads/lead-materialization.service'
 
 // 小红书 xsec_token 缓存有效期(经验值)，超过则回主页刷新
 const XHS_TOKEN_TTL_MS = 12 * 60 * 60 * 1000
@@ -32,6 +33,7 @@ export class WorkDataService {
     private readonly accountOpsConfigRepository: AccountOpsConfigRepository,
     private readonly accountRepository: AccountRepository,
     private readonly acquisitionService: AcquisitionService,
+    @Optional() private readonly leadMaterializationService?: LeadMaterializationService,
   ) {}
 
   private tryExtractPostId(platform: string, postUrl: string, explicitPostId?: string): string | null {
@@ -331,6 +333,19 @@ export class WorkDataService {
       reason: result.capabilityReason || '',
       fetchedAt: new Date(),
     })
+
+    if (fetchStatus === 'ready' && !this.leadMaterializationService) {
+      this.logger.warn('Lead materialization skipped because LeadMaterializationService is not registered')
+    }
+
+    if (fetchStatus === 'ready' && this.leadMaterializationService) {
+      await this.leadMaterializationService.materialize(userId, {
+        monitoredPostId: post.id,
+        fetchBatch: result.fetchBatch || undefined,
+        commentLimit: 100,
+        totalCommentLimit: 100,
+      } as any, userId)
+    }
 
     return updated
   }

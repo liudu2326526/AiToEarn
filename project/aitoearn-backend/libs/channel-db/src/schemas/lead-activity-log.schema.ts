@@ -3,11 +3,17 @@ import { DEFAULT_SCHEMA_OPTIONS } from '../channel-db.constants'
 import { BaseTemp } from './time.tamp'
 
 export enum LeadActivityAction {
+  Materialized = 'materialized',
   Assigned = 'assigned',
   Claimed = 'claimed',
   Transferred = 'transferred',
+  BatchAssigned = 'batch_assigned',
   StageChanged = 'stage_changed',
   NoteAdded = 'note_added',
+  ReplySuggested = 'reply_suggested',
+  ReplyExecuted = 'reply_executed',
+  ReplyFailed = 'reply_failed',
+  PrivateMessageStatusChecked = 'private_message_status_checked',
 }
 
 @Schema({ ...DEFAULT_SCHEMA_OPTIONS, collection: 'lead_activity_log' })
@@ -16,6 +22,9 @@ export class LeadActivityLog extends BaseTemp {
 
   @Prop({ required: true, index: true, type: String })
   leadId: string
+
+  @Prop({ required: true, index: true, type: String })
+  userId: string
 
   @Prop({ required: true, enum: LeadActivityAction, index: true, type: String })
   action: LeadActivityAction

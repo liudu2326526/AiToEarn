@@ -79,4 +79,23 @@ export class CommentSnapshotRepository extends BaseRepository<CommentSnapshot> {
       this.commentSnapshotModel.countDocuments(query).exec(),
     ])
   }
+
+  async listForLeadMaterializationByPost(filter: {
+    platform: string
+    accountId: string
+    postId: string
+    fetchBatch?: string
+    limit: number
+  }) {
+    const query: Record<string, unknown> = {
+      platform: filter.platform,
+      accountId: filter.accountId,
+      postId: filter.postId,
+    }
+    if (filter.fetchBatch) query['fetchBatch'] = filter.fetchBatch
+    return await this.find(query, {
+      sort: { commentedAt: -1, createdAt: -1 },
+      limit: filter.limit,
+    })
+  }
 }

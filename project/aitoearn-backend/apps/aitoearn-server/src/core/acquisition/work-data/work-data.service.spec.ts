@@ -24,8 +24,12 @@ describe('WorkDataService', () => {
   const accountOpsConfigRepository = {
     getByAccountId: vi.fn(),
   }
+  const accountRepository = {
+    getAccountById: vi.fn(),
+  }
   const acquisitionService = {
     fetchNow: vi.fn(),
+    refreshTokens: vi.fn(),
   }
 
   beforeEach(() => {
@@ -37,6 +41,7 @@ describe('WorkDataService', () => {
       postSnapshotRepository as any,
       commentSnapshotRepository as any,
       accountOpsConfigRepository as any,
+      accountRepository as any,
       acquisitionService as any,
     )
   })
@@ -91,6 +96,7 @@ describe('WorkDataService', () => {
   })
 
   it('creates monitored post from published backfill job', async () => {
+    accountRepository.getAccountById.mockResolvedValue({ uid: 'author-1' })
     monitoredPostRepository.upsertByIdentity.mockResolvedValue({
       userId: 'user-1',
       platform: 'xhs',
@@ -109,6 +115,7 @@ describe('WorkDataService', () => {
 
     expect(result.source).toBe('published_backfill')
     expect(monitoredPostRepository.upsertByIdentity).toHaveBeenCalledWith(expect.objectContaining({
+      authorUserId: 'author-1',
       source: 'published_backfill',
     }))
   })

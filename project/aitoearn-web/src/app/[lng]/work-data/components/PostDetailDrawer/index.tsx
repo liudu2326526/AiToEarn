@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Avatar, Card, Drawer, Empty, Input, List, Segmented, Space, Spin, Table, Tabs, Tag, Typography } from 'antd'
+import { Avatar, Button, Card, Drawer, Empty, Input, List, Segmented, Space, Spin, Table, Tabs, Tag, Typography, message } from 'antd'
 import { CommentOutlined, HeartOutlined, ShareAltOutlined, StarOutlined } from '@ant-design/icons'
 import { useTransClient } from '@/app/i18n/client'
 import { useParams } from 'next/navigation'
 import type { MonitoredPostItem, WorkCommentItem, WorkCommentSortBy, WorkSnapshotItem } from '@/api/workData'
 import { listMonitoredPostComments, listMonitoredPostSnapshots } from '@/api/workData'
+import { materializeLeads } from '@/api/leads'
 import DataSourceBadge from '../DataSourceBadge'
 import dayjs from 'dayjs'
 import xhsLogo from '@/assets/svgs/plat/xhs.svg'
@@ -78,6 +79,7 @@ const PostDetailDrawer: React.FC<PostDetailDrawerProps> = ({ visible, post, onCl
   const [comments, setComments] = useState<WorkCommentItem[]>([])
   const [commentTotal, setCommentTotal] = useState(0)
   const [commentLoading, setCommentLoading] = useState(false)
+  const [leadMaterializing, setLeadMaterializing] = useState(false)
   const [commentKeyword, setCommentKeyword] = useState('')
   const [commentSortBy, setCommentSortBy] = useState<WorkCommentSortBy>('time')
   const [activeTab, setActiveTab] = useState('comments')
@@ -114,6 +116,26 @@ const PostDetailDrawer: React.FC<PostDetailDrawerProps> = ({ visible, post, onCl
       console.error(error)
     } finally {
       setSnapshotLoading(false)
+    }
+  }
+
+  const handleMaterializeLeads = async () => {
+    if (!post) return
+    setLeadMaterializing(true)
+    try {
+      const result = await materializeLeads({
+        monitoredPostId: post.id,
+        commentLimit: 100,
+        totalCommentLimit: 100,
+      })
+      message.success(t('workData.materializeSuccess', {
+        total: result.totalScanned,
+        materialized: result.materialized,
+      }))
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : t('workData.materializeFailed'))
+    } finally {
+      setLeadMaterializing(false)
     }
   }
 
@@ -354,6 +376,9 @@ const PostDetailDrawer: React.FC<PostDetailDrawerProps> = ({ visible, post, onCl
                         { label: t('workData.comments.sortByLike'), value: 'like' },
                       ]}
                     />
+                    <Button type="primary" loading={leadMaterializing} onClick={handleMaterializeLeads}>
+                      {t('workData.actions.materializeLeads')}
+                    </Button>
                   </div>
                   <Card
                     size="small"

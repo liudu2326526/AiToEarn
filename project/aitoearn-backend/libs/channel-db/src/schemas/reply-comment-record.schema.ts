@@ -62,6 +62,43 @@ export class ReplyCommentRecord extends BaseTemp {
     type: String,
   })
   replyContent: string
+
+  @Prop({
+    index: true,
+    type: String,
+    default: '',
+  })
+  leadId: string
+
+  @Prop({
+    enum: ['xhs', 'douyin', 'kwai'],
+    index: true,
+    type: String,
+    default: '',
+  })
+  platform: string
+
+  @Prop({
+    enum: ['success', 'failed'],
+    index: true,
+    type: String,
+    default: 'success',
+  })
+  status: 'success' | 'failed'
+
+  @Prop({
+    enum: ['manual', 'platform_adapter'],
+    index: true,
+    type: String,
+    default: 'manual',
+  })
+  executionMode: 'manual' | 'platform_adapter'
+
+  @Prop({
+    type: String,
+    default: '',
+  })
+  failureReason: string
 }
 
 export const ReplyCommentRecordSchema = SchemaFactory.createForClass(ReplyCommentRecord)
