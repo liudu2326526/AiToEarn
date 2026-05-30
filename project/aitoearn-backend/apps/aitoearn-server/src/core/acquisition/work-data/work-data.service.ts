@@ -191,7 +191,7 @@ export class WorkDataService {
   }
 
   async guardFetch(userId: string, accountId: string, monitoredPostId: string): Promise<{ allowed: boolean; reason?: string }> {
-    const config = await this.accountOpsConfigRepository.getByAccountId(accountId)
+    const config = await this.accountOpsConfigRepository.getByAccountId(userId, accountId)
     if (config && config.enableCommentFetch === false) {
       return { allowed: false, reason: 'Comment fetch is disabled by account operation config' }
     }

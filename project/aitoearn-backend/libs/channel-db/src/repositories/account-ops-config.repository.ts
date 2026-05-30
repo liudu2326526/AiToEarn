@@ -13,28 +13,33 @@ export class AccountOpsConfigRepository extends BaseRepository<AccountOpsConfig>
     super(accountOpsConfigModel)
   }
 
-  async upsertByAccountId(accountId: string, data: Partial<AccountOpsConfig>) {
+  async upsertByAccountId(userId: string, accountId: string, data: Partial<AccountOpsConfig>) {
     return await this.updateOne(
-      { accountId },
+      { userId, accountId },
       {
-        $set: data,
+        $set: { ...data, userId },
         $setOnInsert: { accountId },
       },
       { upsert: true },
     )
   }
 
-  async getByAccountId(accountId: string) {
-    return await this.accountOpsConfigModel.findOne({ accountId }).lean({ virtuals: true }).exec()
+  async getByAccountId(userId: string, accountId: string) {
+    return await this.accountOpsConfigModel.findOne({ userId, accountId }).lean({ virtuals: true }).exec()
+  }
+
+  async listByUser(userId: string) {
+    return await this.accountOpsConfigModel.find({ userId }, undefined, { sort: { updatedAt: -1 } }).lean({ virtuals: true }).exec()
   }
 
   async updateCommentCapability(
+    userId: string,
     accountId: string,
     status: CommentFetchCapabilityStatus,
     reason = '',
     meta: Record<string, unknown> = {},
   ) {
-    return await this.upsertByAccountId(accountId, {
+    return await this.upsertByAccountId(userId, accountId, {
       commentFetchStatus: status,
       commentFetchStatusReason: reason,
       commentFetchCheckedAt: new Date(),

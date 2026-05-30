@@ -6,7 +6,7 @@ import {
   ACQUISITION_REPLY_TONE_VALUES,
 } from './acquisition-content.constants'
 
-import { ScriptTemplateScene } from '@yikart/channel-db'
+import { HookTemplateCategory, ScriptTemplateRiskLevel, ScriptTemplateScene } from '@yikart/channel-db'
 
 export const AcquisitionPlatformSchema = z.enum(ACQUISITION_PLATFORM_VALUES).describe('获客平台')
 
@@ -73,18 +73,73 @@ export const UpsertAccountOpsConfigSchema = z.object({
 })
 export class UpsertAccountOpsConfigDto extends createZodDto(UpsertAccountOpsConfigSchema, 'UpsertAccountOpsConfigDto') {}
 
+const PaginationQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  keyword: z.string().trim().max(80).optional(),
+})
+
+export const ListHookTemplateSchema = PaginationQuerySchema.extend({
+  category: z.nativeEnum(HookTemplateCategory).optional(),
+  enabled: z.coerce.boolean().optional(),
+})
+export class ListHookTemplateDto extends createZodDto(ListHookTemplateSchema, 'ListHookTemplateDto') {}
+
 export const CreateHookTemplateSchema = z.object({
   name: z.string().min(1).max(40).describe('模板名称'),
+  category: z.nativeEnum(HookTemplateCategory).describe('钩子类型'),
   content: z.string().min(1).max(500).describe('钩子内容'),
+  weight: z.number().min(0).max(100).default(1).describe('权重'),
+  enabled: z.boolean().default(true).describe('是否启用'),
   applicablePlatforms: z.array(z.string()).default([]).describe('适用平台'),
   applicableCategories: z.array(z.string()).default([]).describe('适用类目'),
+  applicableAccountIds: z.array(z.string()).default([]).describe('适用账号'),
 })
 export class CreateHookTemplateDto extends createZodDto(CreateHookTemplateSchema, 'CreateHookTemplateDto') {}
+
+export const UpdateHookTemplateSchema = CreateHookTemplateSchema.extend({
+  category: z.nativeEnum(HookTemplateCategory).optional(),
+  weight: z.number().min(0).max(100).optional(),
+  enabled: z.boolean().optional(),
+  applicableAccountIds: z.array(z.string()).default([]).optional(),
+}).partial()
+export class UpdateHookTemplateDto extends createZodDto(UpdateHookTemplateSchema, 'UpdateHookTemplateDto') {}
+
+export const ListScriptTemplateSchema = PaginationQuerySchema.extend({
+  scene: z.nativeEnum(ScriptTemplateScene).optional(),
+  riskLevel: z.nativeEnum(ScriptTemplateRiskLevel).optional(),
+  enabled: z.coerce.boolean().optional(),
+})
+export class ListScriptTemplateDto extends createZodDto(ListScriptTemplateSchema, 'ListScriptTemplateDto') {}
 
 export const CreateScriptTemplateSchema = z.object({
   name: z.string().min(1).max(40).describe('模板名称'),
   content: z.string().min(1).max(1000).describe('话术内容'),
   scene: z.nativeEnum(ScriptTemplateScene).describe('适用场景'),
+  variables: z.array(z.string().min(1).max(40)).max(20).default([]).describe('变量名'),
+  enabled: z.boolean().default(true).describe('是否启用'),
   applicableCategories: z.array(z.string()).default([]).describe('适用类目'),
+  riskLevel: z.nativeEnum(ScriptTemplateRiskLevel).default(ScriptTemplateRiskLevel.Low).describe('风险等级'),
+  platformConstraints: z.object({
+    allowWechatId: z.boolean().default(false),
+    requireManualConfirm: z.boolean().default(true),
+    blockedPlatforms: z.array(z.string()).default([]),
+  }).default({
+    allowWechatId: false,
+    requireManualConfirm: true,
+    blockedPlatforms: [],
+  }).describe('平台约束'),
 })
 export class CreateScriptTemplateDto extends createZodDto(CreateScriptTemplateSchema, 'CreateScriptTemplateDto') {}
+
+export const UpdateScriptTemplateSchema = CreateScriptTemplateSchema.extend({
+  variables: z.array(z.string().min(1).max(40)).max(20).optional(),
+  enabled: z.boolean().optional(),
+  riskLevel: z.nativeEnum(ScriptTemplateRiskLevel).optional(),
+  platformConstraints: z.object({
+    allowWechatId: z.boolean().default(false),
+    requireManualConfirm: z.boolean().default(true),
+    blockedPlatforms: z.array(z.string()).default([]),
+  }).optional(),
+}).partial()
+export class UpdateScriptTemplateDto extends createZodDto(UpdateScriptTemplateSchema, 'UpdateScriptTemplateDto') {}

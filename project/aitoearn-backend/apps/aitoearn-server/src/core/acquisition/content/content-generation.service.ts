@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { AiService } from '@yikart/aitoearn-ai-client'
 import { AccountType } from '@yikart/aitoearn-server-client'
-import { AcquisitionContentRepository, AcquisitionContentStatus } from '@yikart/channel-db'
+import { AccountOpsConfig, AccountOpsConfigRepository, AcquisitionContentRepository, AcquisitionContentStatus } from '@yikart/channel-db'
 import { CreditsConsumptionSource, UserType } from '@yikart/common'
 import { z } from 'zod'
 import { SensitiveWordService } from '../../sensitive-word/sensitive-word.service'
@@ -27,13 +27,17 @@ export class ContentGenerationService {
   constructor(
     private readonly aiService: AiService,
     private readonly acquisitionContentRepository: AcquisitionContentRepository,
+    private readonly accountOpsConfigRepository: AccountOpsConfigRepository,
     private readonly hookSelectionService: HookSelectionService,
     private readonly platformContentAdapter: PlatformContentAdapterService,
     private readonly sensitiveWordService: SensitiveWordService,
   ) {}
 
   async generate(userId: string, userType: UserType, dto: GenerateAcquisitionContentDto) {
-    const prompt = this.buildPrompt(dto)
+    const accountConfig = dto.accountIds[0]
+      ? await this.accountOpsConfigRepository.getByAccountId(userId, dto.accountIds[0])
+      : null
+    const prompt = this.buildPrompt(dto, accountConfig)
     try {
       const aiResult = await this.aiService.chatCompletion({
         userId,
@@ -52,6 +56,7 @@ export class ContentGenerationService {
         const normalized = this.platformContentAdapter.normalize(variant)
         const hook = dto.autoAttachHook
           ? await this.hookSelectionService.selectHook({
+            userId,
             platform: normalized.platform,
             accountId: dto.accountIds[0],
             category: dto.productCategory,
@@ -95,8 +100,8 @@ export class ContentGenerationService {
     }
   }
 
-  private buildPrompt(dto: GenerateAcquisitionContentDto) {
-    return [
+  private buildPrompt(dto: GenerateAcquisitionContentDto, accountConfig?: AccountOpsConfig | null) {
+    const lines = [
       '你是服装行业社交媒体获客文案策划。',
       '只输出 JSON，不要 Markdown。',
       '输出格式: {"variants":[{"platform":"xhs|douyin|kwai","title":"","body":"","topics":[],"suggestedPublishAt":"ISO 时间","strategyNote":""}]}',
@@ -108,7 +113,16 @@ export class ContentGenerationService {
       `尺码范围: ${dto.sizeRange || '未提供'}`,
       `卖点: ${dto.sellingPoints}`,
       `风格: ${dto.contentStyle || '自然种草'}`,
-    ].join('\n')
+    ]
+
+    if (accountConfig?.replyTone) {
+      lines.push(`账号语气: ${accountConfig.replyTone}`)
+    }
+    if (accountConfig?.sensitiveWords?.length) {
+      lines.push(`账号自定义敏感词: ${accountConfig.sensitiveWords.join(',')}`)
+    }
+
+    return lines.join('\n')
   }
 
   private async createMediaTasks(userId: string, userType: UserType, dto: GenerateAcquisitionContentDto, prompt: string) {

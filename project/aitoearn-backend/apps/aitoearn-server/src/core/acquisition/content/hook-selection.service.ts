@@ -5,7 +5,7 @@ import { HookTemplateRepository } from '@yikart/channel-db'
 export class HookSelectionService {
   constructor(private readonly hookTemplateRepository: HookTemplateRepository) {}
 
-  async selectHook(query: { platform: string, accountId?: string, category?: string }) {
+  async selectHook(query: { userId: string, platform: string, accountId?: string, category?: string }) {
     const hooks = await this.hookTemplateRepository.listEnabledForSelection(query)
     const sorted = [...hooks].sort((a, b) => {
       const weightDiff = (b.weight || 0) - (a.weight || 0)

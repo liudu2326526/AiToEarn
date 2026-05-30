@@ -39,6 +39,9 @@ export class ScriptTemplate extends BaseTemp {
   id: string
 
   @Prop({ required: true, index: true, type: String })
+  userId: string
+
+  @Prop({ required: true, index: true, type: String })
   name: string
 
   @Prop({ required: true, enum: ScriptTemplateScene, index: true, type: String })
@@ -64,3 +67,6 @@ export class ScriptTemplate extends BaseTemp {
 }
 
 export const ScriptTemplateSchema = SchemaFactory.createForClass(ScriptTemplate)
+
+ScriptTemplateSchema.index({ userId: 1, name: 1 }, { unique: true, name: 'uniq_script_template_user_name' })
+ScriptTemplateSchema.index({ userId: 1, enabled: 1, scene: 1 }, { name: 'idx_script_template_scene_selection' })

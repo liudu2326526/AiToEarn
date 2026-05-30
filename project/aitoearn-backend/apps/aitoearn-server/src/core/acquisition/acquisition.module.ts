@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common'
 import { AitoearnAiClientModule } from '@yikart/aitoearn-ai-client'
 import { ChannelDbModule } from '@yikart/channel-db'
 import { DouyinApiModule } from '../channel/libs/douyin/douyin-api.module'
+import { ChannelSharedModule } from '../channel/platforms/channel-shared.module'
 import { DouyinModule } from '../channel/platforms/douyin/douyin.module'
 import { PublishModule } from '../channel/publishing/publishing.module'
 import { SensitiveWordModule } from '../sensitive-word/sensitive-word.module'
@@ -39,6 +40,7 @@ import { WorkDataService } from './work-data/work-data.service'
     SensitiveWordModule,
     AitoearnAiClientModule,
     PublishModule,
+    ChannelSharedModule,
   ],
   controllers: [
     AcquisitionController,
