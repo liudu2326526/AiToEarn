@@ -98,4 +98,8 @@ export class CommentSnapshotRepository extends BaseRepository<CommentSnapshot> {
       limit: filter.limit,
     })
   }
+
+  async deleteByPost(accountId: string, platform: string, postId: string) {
+    await this.deleteMany({ accountId, platform, postId })
+  }
 }

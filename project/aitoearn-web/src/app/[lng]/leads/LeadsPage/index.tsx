@@ -36,6 +36,46 @@ const emptyStats: LeadStats = {
   invalid: 0,
 }
 
+const pageStyle: React.CSSProperties = {
+  padding: '24px 28px 32px',
+  background: '#f6f8fb',
+  minHeight: '100vh',
+}
+
+const contentStyle: React.CSSProperties = {
+  width: '100%',
+  maxWidth: 1480,
+  margin: '0 auto',
+}
+
+const headerStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'flex-end',
+  justifyContent: 'space-between',
+  gap: 16,
+  flexWrap: 'wrap',
+}
+
+const statsGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+  gap: 12,
+}
+
+const statCardStyle: React.CSSProperties = {
+  borderRadius: 8,
+  borderColor: '#e8edf5',
+}
+
+const statValueStyle: React.CSSProperties = {
+  marginTop: 4,
+  color: '#111827',
+  fontSize: 26,
+  fontWeight: 800,
+  lineHeight: 1.2,
+  fontVariantNumeric: 'tabular-nums',
+}
+
 const LeadsPage: React.FC = () => {
   const { t } = useTransClient('route')
   const [loading, setLoading] = useState(false)
@@ -271,18 +311,20 @@ const LeadsPage: React.FC = () => {
   ]
 
   return (
-    <div style={{ padding: 24, background: '#f6f8fb', minHeight: '100vh' }}>
-      <Space direction="vertical" size={18} style={{ width: '100%' }}>
-        <div>
-          <Text type="secondary">{labels.ui.eyebrow}</Text>
-          <Title level={2} style={{ margin: '4px 0 0' }}>{labels.ui.title}</Title>
+    <div style={pageStyle}>
+      <Space direction="vertical" size={18} style={contentStyle}>
+        <div style={headerStyle}>
+          <div>
+            <Text type="secondary">{labels.ui.eyebrow}</Text>
+            <Title level={2} style={{ margin: '4px 0 0', lineHeight: 1.2 }}>{labels.ui.title}</Title>
+          </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(140px, 1fr))', gap: 12 }}>
+        <div style={statsGridStyle}>
           {statCards.map(card => (
-            <Card key={card.key} size="small">
+            <Card key={card.key} size="small" style={statCardStyle} styles={{ body: { padding: 14 } }}>
               <Text type="secondary">{card.label}</Text>
-              <div style={{ fontSize: 26, fontWeight: 800 }}>{card.value}</div>
+              <div style={statValueStyle}>{card.value}</div>
             </Card>
           ))}
         </div>
@@ -305,7 +347,7 @@ const LeadsPage: React.FC = () => {
           onBatchAssign={openBatchAssign}
         />
 
-        <Card size="small" style={{ borderRadius: 8 }}>
+        <Card size="small" style={{ borderRadius: 8, borderColor: '#e8edf5' }} styles={{ body: { padding: 0 } }}>
           <LeadTable
             labels={labels}
             leads={leads}

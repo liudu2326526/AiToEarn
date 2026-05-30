@@ -23,7 +23,7 @@ export class AcquisitionPostBackfillConsumer extends WorkerHost {
   }
 
   async process(job: Job<AcquisitionPostBackfillData>) {
-    const { userId, accountId, platform, postUrl, postId } = job.data
+    const { userId, accountId, platform, postUrl, postId, authorUserId, xsecToken, xsecSource } = job.data
     if (!userId) {
       this.logger.warn(`Skip acquisition post backfill without userId: ${JSON.stringify(job.data)}`)
       return
@@ -39,6 +39,9 @@ export class AcquisitionPostBackfillConsumer extends WorkerHost {
       platform,
       postUrl,
       postId,
+      authorUserId,
+      xsecToken,
+      xsecSource,
     })
   }
 }

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common'
 import { ApiTags } from '@nestjs/swagger'
 import { GetToken, TokenInfo } from '@yikart/aitoearn-auth'
 import { ApiDoc, AppException, ResponseCode } from '@yikart/common'
@@ -46,6 +46,12 @@ export class WorkDataController {
     const res = await this.workDataService.updateStatus(token.id, id, status)
     if (!res) throw new AppException(ResponseCode.MonitoredPostNotFound)
     return MonitoredPostVo.create(res as any)
+  }
+
+  @ApiDoc({ summary: 'Delete monitored post' })
+  @Delete('/monitored-posts/:id')
+  async delete(@GetToken() token: TokenInfo, @Param('id') id: string) {
+    return await this.workDataService.deleteMonitoredPost(token.id, id)
   }
 
   @ApiDoc({ summary: 'List post snapshot history', query: SnapshotHistoryQueryDto.schema, response: [WorkSnapshotVo] })

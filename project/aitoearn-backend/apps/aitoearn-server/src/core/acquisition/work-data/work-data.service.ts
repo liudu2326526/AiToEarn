@@ -44,6 +44,8 @@ export class WorkDataService {
       if (platform === 'xhs') {
         const match = url.pathname.match(/\/(?:explore|discovery\/item)\/([^/?#]+)/)
         if (match?.[1]) return match[1]
+        const profileMatch = url.pathname.match(/\/user\/profile\/[^/?#]+\/([^/?#]+)/)
+        if (profileMatch?.[1]) return profileMatch[1]
       }
 
       if (platform === 'douyin') {
@@ -72,6 +74,10 @@ export class WorkDataService {
       throw new AppException(ResponseCode.MonitoredPostUrlUnparseable)
     }
 
+    // 查询账号的 uid 作为 authorUserId
+    const account = await this.accountRepository.getAccountById(dto.accountId)
+    const authorUserId = account?.uid || ''
+
     return await this.monitoredPostRepository.upsertByIdentity({
       userId,
       platform: dto.platform,
@@ -81,6 +87,7 @@ export class WorkDataService {
       source: 'manual',
       monitorStatus: 'active',
       fetchStatus: 'idle',
+      authorUserId,
     })
   }
 
@@ -106,9 +113,31 @@ export class WorkDataService {
     return post
   }
 
-  private buildXhsPostUrl(postId: string, xsecToken: string): string {
-    const params = new URLSearchParams({ xsec_token: xsecToken, xsec_source: 'pc_user' })
+  private buildXhsPostUrl(postId: string, xsecToken: string, xsecSource = 'pc_user'): string {
+    const params = new URLSearchParams({ xsec_token: xsecToken, xsec_source: xsecSource || 'pc_user' })
     return `https://www.xiaohongshu.com/explore/${postId}?${params.toString()}`
+  }
+
+  private extractXhsUrlMeta(postUrl: string): {
+    authorUserId?: string
+    xsecToken?: string
+    xsecSource?: string
+  } {
+    try {
+      const url = new URL(postUrl)
+      if (!/(^|\.)xiaohongshu\.com$/.test(url.hostname)) return {}
+
+      const authorUserId = url.pathname.match(/\/user\/profile\/([^/?#]+)/)?.[1]
+      const xsecToken = url.searchParams.get('xsec_token') || undefined
+      const xsecSource = url.searchParams.get('xsec_source') || (xsecToken ? 'pc_user' : undefined)
+      return { authorUserId, xsecToken, xsecSource }
+    } catch (e) {
+      return {}
+    }
+  }
+
+  private isVirtualXhsAuthorUserId(platform: string, authorUserId: string): boolean {
+    return platform === AcquisitionPlatform.Xhs && /^multipost[-_]/i.test(authorUserId)
   }
 
   /**
@@ -122,10 +151,11 @@ export class WorkDataService {
     postUrl: string
     authorUserId?: string
     xsecToken?: string
+    xsecSource?: string
     xsecTokenUpdatedAt?: Date | null
-  }): Promise<string> {
+  }): Promise<string | null> {
     // 仅小红书需要 token；其他平台直接用原链接
-    if (post.platform !== AcquisitionPlatform.Xhs || !post.authorUserId) {
+    if (post.platform !== AcquisitionPlatform.Xhs) {
       return post.postUrl
     }
 
@@ -133,21 +163,31 @@ export class WorkDataService {
       && !!post.xsecTokenUpdatedAt
       && Date.now() - new Date(post.xsecTokenUpdatedAt).getTime() < XHS_TOKEN_TTL_MS
     if (tokenFresh) {
-      return this.buildXhsPostUrl(post.postId, post.xsecToken!)
+      this.logger.log(`[resolveFreshPostUrl] use cached token postId=${post.postId}`)
+      return this.buildXhsPostUrl(post.postId, post.xsecToken!, post.xsecSource)
+    }
+
+    if (!post.authorUserId) {
+      this.logger.warn(`[resolveFreshPostUrl] skip token refresh: platform=${post.platform} authorUserId=(empty) postId=${post.postId}`)
+      return null
     }
 
     // token 过期/缺失：回主页刷新该账号全部作品 token，一次访问全账号受益
+    this.logger.log(`[resolveFreshPostUrl] refreshing tokens via profile authorUserId=${post.authorUserId} postId=${post.postId}`)
     const tokens = await this.acquisitionService.refreshTokens(post.platform, post.authorUserId)
+    this.logger.log(`[resolveFreshPostUrl] refreshTokens returned ${tokens.length} notes: ${tokens.map(t => t.postId).join(',') || '(none)'}`)
     if (tokens.length > 0) {
       await this.monitoredPostRepository.updateTokensByAccount(userId, post.platform, post.accountId, tokens)
     }
     const current = tokens.find(t => t.postId === post.postId)
     if (current) {
+      this.logger.log(`[resolveFreshPostUrl] got fresh token for postId=${post.postId}`)
       return this.buildXhsPostUrl(post.postId, current.xsecToken)
     }
 
     // 刷新仍拿不到(如审核中未在主页展示)：退回已有 token 或原链接
-    return post.xsecToken ? this.buildXhsPostUrl(post.postId, post.xsecToken) : post.postUrl
+    this.logger.warn(`[resolveFreshPostUrl] note not found on profile (maybe under review) postId=${post.postId}, fallback`)
+    return post.xsecToken ? this.buildXhsPostUrl(post.postId, post.xsecToken, post.xsecSource) : null
   }
 
   async guardFetch(userId: string, accountId: string, monitoredPostId: string): Promise<{ allowed: boolean; reason?: string }> {
@@ -195,6 +235,9 @@ export class WorkDataService {
     })
 
     const fetchUrl = await this.resolveFreshPostUrl(userId, post)
+    if (!fetchUrl) {
+      return await this.markXhsTokenPending(userId, post)
+    }
     const result = await this.acquisitionService.fetchNow(userId, {
       platform: post.platform as AcquisitionPlatform,
       accountId: post.accountId,
@@ -250,6 +293,9 @@ export class WorkDataService {
     }
 
     const fetchUrl = await this.resolveFreshPostUrl(userId, post)
+    if (!fetchUrl) {
+      return await this.markXhsTokenPending(userId, post)
+    }
     const result = await this.acquisitionService.fetchNow(userId, {
       ...data,
       platform: data.platform as AcquisitionPlatform,
@@ -270,6 +316,9 @@ export class WorkDataService {
     platform: string
     postUrl: string
     postId?: string
+    authorUserId?: string
+    xsecToken?: string
+    xsecSource?: string
   }) {
     // 1. Ensure it enters monitored posts
     const post = await this.upsertFromPublishedBackfill({
@@ -350,6 +399,24 @@ export class WorkDataService {
     return updated
   }
 
+  private async markXhsTokenPending(userId: string, post: MonitoredPost) {
+    const reason = 'XHS xsec_token is not available yet'
+    const updated = await this.monitoredPostRepository.updateById(post.id, {
+      fetchStatus: 'pending_confirmation',
+      capabilityReason: reason,
+    })
+    await this.monitoredPostFetchLogRepository.create({
+      userId,
+      monitoredPostId: post.id,
+      accountId: post.accountId,
+      platform: post.platform,
+      fetchStatus: 'pending_confirmation',
+      reason,
+      fetchedAt: new Date(),
+    })
+    return updated
+  }
+
   async listSnapshots(userId: string, id: string, limit: number) {
     const post = await this.getDetail(userId, id)
     return await this.postSnapshotRepository.listByPost(post.accountId, post.platform, post.postId, limit)
@@ -377,6 +444,9 @@ export class WorkDataService {
     accountId: string
     postUrl: string
     postId?: string
+    authorUserId?: string
+    xsecToken?: string
+    xsecSource?: string
   }) {
     const postId = this.tryExtractPostId(data.platform, data.postUrl, data.postId)
     if (!postId) {
@@ -384,9 +454,24 @@ export class WorkDataService {
       return
     }
 
-    // 记录作者主页 userId(= account.uid),用于后续回主页刷新 xsec_token
+    const xhsUrlMeta = data.platform === AcquisitionPlatform.Xhs ? this.extractXhsUrlMeta(data.postUrl) : {}
+
+    // 记录作者主页 userId，用于后续回主页刷新 xsec_token；MultiPost 虚拟账号不能当成真实小红书主页 ID。
     const account = await this.accountRepository.getAccountById(data.accountId)
-    const authorUserId = account?.uid || ''
+    const rawAuthorUserId = data.authorUserId || xhsUrlMeta.authorUserId || account?.uid || ''
+    const canUseAccountAuthorUserId = !this.isVirtualXhsAuthorUserId(data.platform, rawAuthorUserId)
+    const authorUserId = canUseAccountAuthorUserId
+      ? rawAuthorUserId
+      : await this.monitoredPostRepository.findLatestAuthorUserIdByAccount(data.userId, data.platform, data.accountId)
+    const xsecToken = data.xsecToken || xhsUrlMeta.xsecToken || ''
+    const xsecSource = data.xsecSource || xhsUrlMeta.xsecSource || (xsecToken ? 'pc_user' : '')
+    const tokenFields = xsecToken
+      ? {
+          xsecToken,
+          xsecSource,
+          xsecTokenUpdatedAt: new Date(),
+        }
+      : {}
 
     return await this.monitoredPostRepository.upsertByIdentity({
       userId: data.userId,
@@ -395,6 +480,7 @@ export class WorkDataService {
       postId,
       postUrl: data.postUrl,
       authorUserId,
+      ...tokenFields,
       source: 'published_backfill',
       monitorStatus: 'active',
       fetchStatus: 'idle',
@@ -404,6 +490,20 @@ export class WorkDataService {
   async updateStatus(userId: string, id: string, status: string) {
     const post = await this.getDetail(userId, id)
     return await this.monitoredPostRepository.updateById(post.id, { monitorStatus: status as MonitoredPostStatus })
+  }
+
+  async deleteMonitoredPost(userId: string, id: string) {
+    const post = await this.getDetail(userId, id)
+    await Promise.all([
+      this.postSnapshotRepository.deleteByPost(post.accountId, post.platform, post.postId),
+      this.commentSnapshotRepository.deleteByPost(post.accountId, post.platform, post.postId),
+      this.monitoredPostFetchLogRepository.deleteByMonitoredPostId(userId, post.id),
+    ])
+
+    const deleted = await this.monitoredPostRepository.deleteByIdAndUser(post.id, userId)
+    if (!deleted) throw new AppException(ResponseCode.MonitoredPostNotFound)
+
+    return { success: true }
   }
 
   private getStartOfShanghaiDay(now = new Date()) {

@@ -23,4 +23,8 @@ export class MonitoredPostFetchLogRepository extends BaseRepository<MonitoredPos
       fetchedAt: { $gte: since },
     })
   }
+
+  async deleteByMonitoredPostId(userId: string, monitoredPostId: string) {
+    await this.deleteMany({ userId, monitoredPostId })
+  }
 }

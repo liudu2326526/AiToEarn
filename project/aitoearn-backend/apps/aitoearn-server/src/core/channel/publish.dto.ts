@@ -167,6 +167,9 @@ export const UpdatePluginPublishResultSchema = z.object({
   success: z.boolean().describe('插件发布是否成功'),
   dataId: z.string().optional().describe('平台作品ID或插件请求ID'),
   workLink: z.string().optional().describe('作品链接'),
+  authorUserId: z.string().optional().describe('平台作者主页用户ID'),
+  xsecToken: z.string().optional().describe('小红书作品 xsec_token'),
+  xsecSource: z.string().optional().describe('小红书作品 xsec_source'),
   pendingConfirmation: z.boolean().optional().describe('插件已点击发布但尚未拿到平台确认信号'),
   errorMsg: z.string().optional().describe('失败原因'),
 })

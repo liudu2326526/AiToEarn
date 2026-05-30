@@ -23,6 +23,31 @@ interface LeadToolbarProps {
 
 const toOptions = (record: Record<string, string>) => Object.entries(record).map(([value, label]) => ({ value, label }))
 
+const toolbarBodyStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 12,
+  flexWrap: 'wrap',
+}
+
+const filtersStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  flexWrap: 'wrap',
+  minWidth: 0,
+  flex: '1 1 620px',
+}
+
+const actionsStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'flex-end',
+  gap: 8,
+  flexWrap: 'wrap',
+}
+
 const LeadToolbar: React.FC<LeadToolbarProps> = ({
   labels,
   platform,
@@ -38,14 +63,14 @@ const LeadToolbar: React.FC<LeadToolbarProps> = ({
   onMaterialize,
   onBatchAssign,
 }) => (
-  <Card size="small" style={{ borderRadius: 8 }}>
-    <Space wrap style={{ width: '100%', justifyContent: 'space-between' }}>
-      <Space wrap>
+  <Card size="small" style={{ borderRadius: 8 }} styles={{ body: { padding: 12 } }}>
+    <div style={toolbarBodyStyle}>
+      <div style={filtersStyle}>
         <Select
           allowClear
           placeholder={labels.ui.platform}
           value={platform}
-          style={{ width: 120 }}
+          style={{ width: 132 }}
           onChange={onPlatformChange}
           options={toOptions(labels.platform)}
         />
@@ -53,7 +78,7 @@ const LeadToolbar: React.FC<LeadToolbarProps> = ({
           allowClear
           placeholder={labels.ui.stage}
           value={stage}
-          style={{ width: 140 }}
+          style={{ width: 148 }}
           onChange={onStageChange}
           options={toOptions(labels.stage)}
         />
@@ -61,23 +86,23 @@ const LeadToolbar: React.FC<LeadToolbarProps> = ({
           allowClear
           placeholder={labels.ui.status}
           value={status}
-          style={{ width: 120 }}
+          style={{ width: 132 }}
           onChange={onStatusChange}
           options={toOptions(labels.status)}
         />
         <Input.Search
           placeholder={labels.ui.searchPlaceholder}
           allowClear
-          style={{ width: 260 }}
+          style={{ width: 300, maxWidth: '100%' }}
           onSearch={onSearch}
         />
-      </Space>
-      <Space>
+      </div>
+      <Space style={actionsStyle}>
         <Button icon={<ReloadOutlined />} onClick={onRefresh}>{labels.ui.refresh}</Button>
         <Button type="primary" loading={materializing} onClick={onMaterialize}>{labels.ui.materialize}</Button>
         <Button icon={<UserSwitchOutlined />} disabled={!hasSelection} onClick={onBatchAssign}>{labels.ui.batchAssign}</Button>
       </Space>
-    </Space>
+    </div>
   </Card>
 )
 

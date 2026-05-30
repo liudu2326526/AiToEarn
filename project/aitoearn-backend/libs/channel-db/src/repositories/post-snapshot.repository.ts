@@ -33,4 +33,8 @@ export class PostSnapshotRepository extends BaseRepository<PostSnapshot> {
   async findLatest(accountId: string, platform: string, postId: string) {
     return await this.findOne({ accountId, platform, postId }, { sort: { fetchedAt: -1 } })
   }
+
+  async deleteByPost(accountId: string, platform: string, postId: string) {
+    await this.deleteMany({ accountId, platform, postId })
+  }
 }

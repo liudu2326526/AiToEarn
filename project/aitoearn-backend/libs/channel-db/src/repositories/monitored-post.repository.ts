@@ -52,8 +52,28 @@ export class MonitoredPostRepository extends BaseRepository<MonitoredPost> {
     return await this.monitoredPostModel.findOne({ _id: id, userId }).lean({ virtuals: true }).exec() as any
   }
 
+  async deleteByIdAndUser(id: string, userId: string) {
+    return await this.monitoredPostModel.findOneAndDelete({ _id: id, userId }).lean({ virtuals: true }).exec() as any
+  }
+
   async getByIdentity(userId: string, platform: string, accountId: string, postId: string) {
     return await this.monitoredPostModel.findOne({ userId, platform, accountId, postId })
+  }
+
+  async findLatestAuthorUserIdByAccount(userId: string, platform: string, accountId: string): Promise<string> {
+    const post = await this.monitoredPostModel
+      .findOne({
+        userId,
+        platform,
+        accountId,
+        authorUserId: { $exists: true, $nin: ['', null] },
+      })
+      .sort({ xsecTokenUpdatedAt: -1, updatedAt: -1 })
+      .select({ authorUserId: 1 })
+      .lean()
+      .exec()
+
+    return post?.authorUserId || ''
   }
 
   /** 批量回写某账号下各作品的 xsec_token(回主页刷新后) */

@@ -188,6 +188,22 @@ export class PublishController {
       })
     }
 
+    const xhsWorkLinkMeta = this.extractXhsWorkLinkMeta(data.workLink)
+    if (this.isXhsBareWorkLink(publishRecord.accountType, data.workLink, data.xsecToken, xhsWorkLinkMeta.xsecToken)) {
+      await this.publishRecordService.updateStatusById(data.id, PublishStatus.PUBLISHING)
+      return this.publishRecordService.updateWorkLinkById(data.id, {
+        dataId: xhsWorkLinkMeta.postId || finalDataId,
+        linkStatus: PublishRecordLinkStatus.PENDING,
+        linkError: 'XHS xsec_token is not available yet',
+        linkMeta: {
+          ...(publishRecord.linkMeta || {}),
+          pendingConfirmation: true,
+          missingXsecToken: true,
+          unverifiedWorkLink: data.workLink,
+        },
+      })
+    }
+
     // 有 workLink：先入监控(审核中链接暂不可访问也先记录，等审核通过后再抓取数据)
     const acquisitionPlatform = this.toAcquisitionPlatform(publishRecord.accountType)
     if (acquisitionPlatform && publishRecord.accountId && publishRecord.userId) {
@@ -196,6 +212,9 @@ export class PublishController {
         accountId: publishRecord.accountId,
         platform: acquisitionPlatform,
         postUrl: data.workLink,
+        authorUserId: data.authorUserId,
+        xsecToken: data.xsecToken,
+        xsecSource: data.xsecSource,
       })
     }
 
@@ -234,6 +253,30 @@ export class PublishController {
     if (accountType === 'douyin') return 'douyin'
     if (accountType === 'KWAI' || accountType === 'kwai') return 'kwai'
     return null
+  }
+
+  private extractXhsWorkLinkMeta(workLink: string): { postId?: string; xsecToken?: string } {
+    try {
+      const url = new URL(workLink)
+      if (!/(^|\.)xiaohongshu\.com$/.test(url.hostname)) return {}
+
+      const exploreMatch = url.pathname.match(/\/(?:explore|discovery\/item)\/([A-Za-z0-9]+)/)
+      const profileMatch = url.pathname.match(/\/user\/profile\/[^/?#]+\/([A-Za-z0-9]+)/)
+      return {
+        postId: exploreMatch?.[1] || profileMatch?.[1],
+        xsecToken: url.searchParams.get('xsec_token')?.trim() || undefined,
+      }
+    }
+    catch (e) {
+      return {}
+    }
+  }
+
+  private isXhsBareWorkLink(accountType: unknown, workLink: string, payloadToken?: string, urlToken?: string): boolean {
+    if (accountType !== 'xhs') return false
+    const meta = this.extractXhsWorkLinkMeta(workLink)
+    if (!meta.postId) return false
+    return !payloadToken?.trim() && !urlToken?.trim() && !meta.xsecToken
   }
 
   @ApiDoc({

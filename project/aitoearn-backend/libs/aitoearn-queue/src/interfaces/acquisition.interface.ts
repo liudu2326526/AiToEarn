@@ -14,6 +14,9 @@ export interface AcquisitionPostBackfillData {
   platform: string
   postId?: string
   postUrl: string
+  authorUserId?: string
+  xsecToken?: string
+  xsecSource?: string
 }
 
 export interface AcquisitionLeadNotifyData {

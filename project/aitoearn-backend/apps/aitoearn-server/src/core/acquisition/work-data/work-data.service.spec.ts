@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ResponseCode } from '@yikart/common'
 import { WorkDataService } from './work-data.service'
 
 describe('WorkDataService', () => {
@@ -9,17 +10,23 @@ describe('WorkDataService', () => {
     updateById: vi.fn(),
     findOne: vi.fn(),
     getByIdAndUser: vi.fn(),
+    getByIdentity: vi.fn(),
+    findLatestAuthorUserIdByAccount: vi.fn(),
+    deleteByIdAndUser: vi.fn(),
   }
   const monitoredPostFetchLogRepository = {
     countByAccountSince: vi.fn(),
     create: vi.fn(),
+    deleteByMonitoredPostId: vi.fn(),
   }
   const postSnapshotRepository = {
     listByPost: vi.fn(),
     findLatest: vi.fn(),
+    deleteByPost: vi.fn(),
   }
   const commentSnapshotRepository = {
     listWithPagination: vi.fn(),
+    deleteByPost: vi.fn(),
   }
   const accountOpsConfigRepository = {
     getByAccountId: vi.fn(),
@@ -33,6 +40,7 @@ describe('WorkDataService', () => {
   }
 
   beforeEach(() => {
+    vi.useRealTimers()
     vi.clearAllMocks()
     // @ts-ignore
     service = new WorkDataService(
@@ -118,6 +126,163 @@ describe('WorkDataService', () => {
       authorUserId: 'author-1',
       source: 'published_backfill',
     }))
+  })
+
+  it('stores xhs token metadata from a published backfill url and ignores virtual multipost uid', async () => {
+    const tokenUpdatedAt = new Date('2026-05-30T03:30:00.000Z')
+    vi.useFakeTimers()
+    vi.setSystemTime(tokenUpdatedAt)
+    accountRepository.getAccountById.mockResolvedValue({ uid: 'multipost-rednote' })
+    monitoredPostRepository.findLatestAuthorUserIdByAccount.mockResolvedValue('')
+    monitoredPostRepository.upsertByIdentity.mockResolvedValue({
+      userId: 'user-1',
+      platform: 'xhs',
+      accountId: 'xhs_multipost-rednote_web',
+      postId: 'post-1',
+      source: 'published_backfill',
+    })
+
+    await service.upsertFromPublishedBackfill({
+      userId: 'user-1',
+      platform: 'xhs',
+      accountId: 'xhs_multipost-rednote_web',
+      postUrl: 'https://www.xiaohongshu.com/explore/post-1?xsec_token=token-1&xsec_source=pc_user',
+    })
+
+    expect(monitoredPostRepository.upsertByIdentity).toHaveBeenCalledWith(expect.objectContaining({
+      authorUserId: '',
+      xsecToken: 'token-1',
+      xsecSource: 'pc_user',
+      xsecTokenUpdatedAt: tokenUpdatedAt,
+    }))
+    vi.useRealTimers()
+  })
+
+  it('reuses latest known xhs author id for multipost published backfills', async () => {
+    accountRepository.getAccountById.mockResolvedValue({ uid: 'multipost-rednote' })
+    monitoredPostRepository.findLatestAuthorUserIdByAccount.mockResolvedValue('author-1')
+    monitoredPostRepository.upsertByIdentity.mockResolvedValue({
+      userId: 'user-1',
+      platform: 'xhs',
+      accountId: 'xhs_multipost-rednote_web',
+      postId: 'post-2',
+      source: 'published_backfill',
+    })
+
+    await service.upsertFromPublishedBackfill({
+      userId: 'user-1',
+      platform: 'xhs',
+      accountId: 'xhs_multipost-rednote_web',
+      postUrl: 'https://www.xiaohongshu.com/explore/post-2',
+    })
+
+    expect(monitoredPostRepository.findLatestAuthorUserIdByAccount).toHaveBeenCalledWith(
+      'user-1',
+      'xhs',
+      'xhs_multipost-rednote_web',
+    )
+    expect(monitoredPostRepository.upsertByIdentity).toHaveBeenCalledWith(expect.objectContaining({
+      authorUserId: 'author-1',
+    }))
+  })
+
+  it('uses cached xhs token for worker fetch even when author user id is missing', async () => {
+    const tokenUpdatedAt = new Date()
+    monitoredPostRepository.getByIdentity.mockResolvedValue({
+      id: 'monitored-1',
+      userId: 'user-1',
+      platform: 'xhs',
+      accountId: 'xhs_multipost-rednote_web',
+      postId: 'post-1',
+      postUrl: 'https://www.xiaohongshu.com/explore/post-1',
+      authorUserId: '',
+      xsecToken: 'token-1',
+      xsecSource: 'pc_user',
+      xsecTokenUpdatedAt: tokenUpdatedAt,
+    })
+    accountOpsConfigRepository.getByAccountId.mockResolvedValue(null)
+    acquisitionService.fetchNow.mockResolvedValue({
+      capabilityStatus: 'ready',
+      postSaved: false,
+      fetchBatch: 'batch-1',
+    })
+    monitoredPostRepository.updateById.mockResolvedValue({
+      fetchStatus: 'ready',
+    })
+
+    await service.processWorkerFetch('user-1', {
+      accountId: 'xhs_multipost-rednote_web',
+      platform: 'xhs',
+      postUrl: 'https://www.xiaohongshu.com/explore/post-1',
+    })
+
+    expect(acquisitionService.refreshTokens).not.toHaveBeenCalled()
+    expect(acquisitionService.fetchNow).toHaveBeenCalledWith('user-1', expect.objectContaining({
+      postUrl: 'https://www.xiaohongshu.com/explore/post-1?xsec_token=token-1&xsec_source=pc_user',
+    }))
+  })
+
+  it('keeps xhs worker fetch pending when token is unavailable', async () => {
+    monitoredPostRepository.getByIdentity.mockResolvedValue({
+      id: 'monitored-1',
+      userId: 'user-1',
+      platform: 'xhs',
+      accountId: 'xhs_multipost-rednote_web',
+      postId: 'post-1',
+      postUrl: 'https://www.xiaohongshu.com/explore/post-1',
+      authorUserId: '',
+      xsecToken: '',
+      xsecSource: '',
+      xsecTokenUpdatedAt: null,
+    })
+    accountOpsConfigRepository.getByAccountId.mockResolvedValue(null)
+    monitoredPostRepository.updateById.mockResolvedValue({
+      fetchStatus: 'pending_confirmation',
+      capabilityReason: 'XHS xsec_token is not available yet',
+    })
+
+    const result = await service.processWorkerFetch('user-1', {
+      accountId: 'xhs_multipost-rednote_web',
+      platform: 'xhs',
+      postUrl: 'https://www.xiaohongshu.com/explore/post-1',
+    })
+
+    expect(result.fetchStatus).toBe('pending_confirmation')
+    expect(acquisitionService.fetchNow).not.toHaveBeenCalled()
+    expect(monitoredPostFetchLogRepository.create).toHaveBeenCalledWith(expect.objectContaining({
+      fetchStatus: 'pending_confirmation',
+      reason: 'XHS xsec_token is not available yet',
+    }))
+  })
+
+  it('deletes a monitored post and its related work data for the current user', async () => {
+    monitoredPostRepository.getByIdAndUser.mockResolvedValue({
+      id: 'monitored-1',
+      userId: 'user-1',
+      platform: 'xhs',
+      accountId: 'account-1',
+      postId: 'post-1',
+    })
+    postSnapshotRepository.deleteByPost.mockResolvedValue(undefined)
+    commentSnapshotRepository.deleteByPost.mockResolvedValue(undefined)
+    monitoredPostFetchLogRepository.deleteByMonitoredPostId.mockResolvedValue(undefined)
+    monitoredPostRepository.deleteByIdAndUser.mockResolvedValue({ id: 'monitored-1' })
+
+    const result = await service.deleteMonitoredPost('user-1', 'monitored-1')
+
+    expect(result).toEqual({ success: true })
+    expect(postSnapshotRepository.deleteByPost).toHaveBeenCalledWith('account-1', 'xhs', 'post-1')
+    expect(commentSnapshotRepository.deleteByPost).toHaveBeenCalledWith('account-1', 'xhs', 'post-1')
+    expect(monitoredPostFetchLogRepository.deleteByMonitoredPostId).toHaveBeenCalledWith('user-1', 'monitored-1')
+    expect(monitoredPostRepository.deleteByIdAndUser).toHaveBeenCalledWith('monitored-1', 'user-1')
+  })
+
+  it('rejects deleting a missing or unowned monitored post', async () => {
+    monitoredPostRepository.getByIdAndUser.mockResolvedValue(null)
+
+    await expect(service.deleteMonitoredPost('user-1', 'missing-id'))
+      .rejects.toMatchObject({ code: ResponseCode.MonitoredPostNotFound })
+    expect(monitoredPostRepository.deleteByIdAndUser).not.toHaveBeenCalled()
   })
 
   describe('fetchNow strategy guards', () => {

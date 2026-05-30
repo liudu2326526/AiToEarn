@@ -71,6 +71,12 @@ export async function updateMonitoredPostStatus(id: string, status: MonitoredPos
   return response.data
 }
 
+export async function deleteMonitoredPost(id: string) {
+  const response = await http.delete<{ success: boolean }>(`acquisition/work-data/monitored-posts/${id}`)
+  if (!response || String(response.code) !== '0') throw new Error(response?.message || 'delete monitored post failed')
+  return response.data
+}
+
 export async function listMonitoredPostComments(id: string, params: Record<string, string | number | undefined>) {
   const response = await http.get<{ list: WorkCommentItem[], total: number, page: number, pageSize: number, totalPages: number }>(
     `acquisition/work-data/monitored-posts/${id}/comments`,

@@ -1,7 +1,8 @@
 import React from 'react'
-import { Table, Space, Button, Tag, Tooltip, Image, message } from 'antd'
+import { Table, Space, Button, Tag, Tooltip, Image, message, Popconfirm } from 'antd'
 import {
   CommentOutlined,
+  DeleteOutlined,
   EyeOutlined,
   HeartOutlined,
   PauseCircleOutlined,
@@ -13,7 +14,7 @@ import {
 import { useTransClient } from '@/app/i18n/client'
 import { useParams } from 'next/navigation'
 import type { MonitoredPostItem } from '@/api/workData'
-import { fetchMonitoredPost, updateMonitoredPostStatus } from '@/api/workData'
+import { deleteMonitoredPost, fetchMonitoredPost, updateMonitoredPostStatus } from '@/api/workData'
 import dayjs from 'dayjs'
 
 interface MonitoredPostTableProps {
@@ -58,6 +59,16 @@ const MonitoredPostTable: React.FC<MonitoredPostTableProps> = ({
       onRefresh()
     } catch (error: any) {
       message.error(error.message || t('workData.statusUpdateFailed'))
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteMonitoredPost(id)
+      message.success(t('workData.deleteSuccess'))
+      onRefresh()
+    } catch (error: any) {
+      message.error(error.message || t('workData.deleteFailed'))
     }
   }
 
@@ -230,7 +241,7 @@ const MonitoredPostTable: React.FC<MonitoredPostTableProps> = ({
       title: t('workData.columns.actions'),
       key: 'actions',
       fixed: 'right' as const,
-      width: 132,
+      width: 168,
       render: (_: any, record: MonitoredPostItem) => (
         <Space size={4}>
           <Tooltip title={t('workData.actions.fetch')}>
@@ -253,6 +264,16 @@ const MonitoredPostTable: React.FC<MonitoredPostTableProps> = ({
               <Button type="text" icon={<PlayCircleOutlined />} onClick={() => handleToggleStatus(record)} />
             </Tooltip>
           )}
+          <Popconfirm
+            title={t('workData.deleteConfirm')}
+            okText={t('workData.deleteOk')}
+            cancelText={t('workData.deleteCancel')}
+            onConfirm={() => handleDelete(record.id)}
+          >
+            <Tooltip title={t('workData.actions.delete')}>
+              <Button type="text" danger icon={<DeleteOutlined />} />
+            </Tooltip>
+          </Popconfirm>
         </Space>
       ),
     },
@@ -265,7 +286,7 @@ const MonitoredPostTable: React.FC<MonitoredPostTableProps> = ({
       columns={columns}
       rowKey="id"
       size="middle"
-      scroll={{ x: 1300 }}
+      scroll={{ x: 1340 }}
       style={{ padding: 16 }}
       onRow={record => ({
         onClick: event => {

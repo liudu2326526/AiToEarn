@@ -1,6 +1,6 @@
 import React from 'react'
-import { Avatar, Button, Select, Space, Table, Tag, Typography, message } from 'antd'
-import { TeamOutlined } from '@ant-design/icons'
+import { Avatar, Button, Select, Space, Table, Tag, Tooltip, Typography, message } from 'antd'
+import { EyeOutlined, TeamOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { LeadItem, LeadStage } from '@/api/leads'
 import { claimLead, updateLeadStage } from '@/api/leads'
@@ -23,6 +23,31 @@ interface LeadTableProps {
   onRefresh: () => Promise<void>
 }
 
+const ellipsisTextStyle: React.CSSProperties = {
+  display: 'block',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+}
+
+const commentPreviewStyle: React.CSSProperties = {
+  display: '-webkit-box',
+  overflow: 'hidden',
+  WebkitBoxOrient: 'vertical',
+  WebkitLineClamp: 2,
+  lineHeight: 1.55,
+  wordBreak: 'break-word',
+}
+
+const compactButtonStyle: React.CSSProperties = {
+  whiteSpace: 'nowrap',
+}
+
+const formatAssignee = (value?: string) => {
+  if (!value) return ''
+  return value.length > 10 ? `${value.slice(0, 8)}...` : value
+}
+
 const LeadTable: React.FC<LeadTableProps> = ({
   labels,
   leads,
@@ -40,39 +65,51 @@ const LeadTable: React.FC<LeadTableProps> = ({
     {
       title: labels.ui.platformAccount,
       key: 'platform',
-      width: 150,
+      width: 135,
       render: (_: unknown, record: LeadItem) => (
-        <Space direction="vertical" size={2}>
-          <Tag color="blue">{labels.platform[record.platform]}</Tag>
-          <Text type="secondary" style={{ fontSize: 12 }}>{record.accountId}</Text>
-        </Space>
+        <div style={{ minWidth: 0 }}>
+          <Tag color="blue" style={{ marginBottom: 6 }}>{labels.platform[record.platform]}</Tag>
+          <Tooltip title={record.accountId}>
+            <Text
+              type="secondary"
+              style={{ ...ellipsisTextStyle, maxWidth: 100, fontSize: 12 }}
+            >
+              {record.accountId}
+            </Text>
+          </Tooltip>
+        </div>
       ),
     },
     {
       title: labels.ui.sourceUser,
       key: 'user',
-      width: 180,
+      width: 150,
       render: (_: unknown, record: LeadItem) => (
-        <Space>
-          <Avatar src={record.userAvatar}>{record.userName?.slice(0, 1)}</Avatar>
-          <Text strong>{record.userName || labels.ui.unknownUser}</Text>
-        </Space>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <Avatar src={record.userAvatar} style={{ flex: '0 0 auto' }}>{record.userName?.slice(0, 1)}</Avatar>
+          <Tooltip title={record.userName || labels.ui.unknownUser}>
+            <Text strong style={{ ...ellipsisTextStyle, maxWidth: 96 }}>
+              {record.userName || labels.ui.unknownUser}
+            </Text>
+          </Tooltip>
+        </div>
       ),
     },
     {
       title: labels.ui.commentContent,
       dataIndex: 'sourceContent',
       key: 'sourceContent',
+      width: 280,
       render: (value: string) => (
-        <Text style={{ display: 'block', maxWidth: 420 }} ellipsis={{ tooltip: value }}>
-          {value || '-'}
-        </Text>
+        <Tooltip title={value}>
+          <div style={commentPreviewStyle}>{value || '-'}</div>
+        </Tooltip>
       ),
     },
     {
       title: labels.ui.stageStatus,
       key: 'stage',
-      width: 170,
+      width: 110,
       render: (_: unknown, record: LeadItem) => (
         <LeadStageTag stage={record.stage} status={record.status} labels={labels} />
       ),
@@ -81,32 +118,61 @@ const LeadTable: React.FC<LeadTableProps> = ({
       title: labels.ui.assignee,
       dataIndex: 'assignee',
       key: 'assignee',
-      width: 140,
-      render: (value: string) => value || <Text type="secondary">{labels.ui.unassigned}</Text>,
+      width: 92,
+      render: (value?: string) => value
+        ? (
+            <Tooltip title={value}>
+              <Text style={{ ...ellipsisTextStyle, maxWidth: 64 }}>{formatAssignee(value)}</Text>
+            </Tooltip>
+          )
+        : <Text type="secondary">{labels.ui.unassigned}</Text>,
     },
     {
       title: labels.ui.lastFollowUp,
       dataIndex: 'lastFollowUpAt',
       key: 'lastFollowUpAt',
-      width: 170,
-      render: (value?: string) => value ? dayjs(value).format('YYYY-MM-DD HH:mm') : '-',
+      width: 96,
+      render: (value?: string) => value
+        ? (
+            <Tooltip title={dayjs(value).format('YYYY-MM-DD HH:mm')}>
+              <Text style={{ fontVariantNumeric: 'tabular-nums' }}>{dayjs(value).format('MM-DD HH:mm')}</Text>
+            </Tooltip>
+          )
+        : '-',
     },
     {
       title: labels.ui.actions,
       key: 'actions',
-      width: 220,
+      width: 178,
+      fixed: 'right' as const,
       render: (_: unknown, record: LeadItem) => (
-        <Space>
-          <Button size="small" onClick={() => onOpenDetail(record)}>{labels.ui.detail}</Button>
-          <Button size="small" icon={<TeamOutlined />} onClick={async () => {
-            await claimLead(record.id)
-            message.success(labels.ui.claimSuccess)
-            await onRefresh()
-          }}>{labels.ui.claim}</Button>
+        <Space size={6} wrap={false}>
+          <Tooltip title={labels.ui.detail}>
+            <Button
+              aria-label={labels.ui.detail}
+              size="small"
+              icon={<EyeOutlined />}
+              style={compactButtonStyle}
+              onClick={() => onOpenDetail(record)}
+            />
+          </Tooltip>
+          <Tooltip title={labels.ui.claim}>
+            <Button
+              aria-label={labels.ui.claim}
+              size="small"
+              icon={<TeamOutlined />}
+              style={compactButtonStyle}
+              onClick={async () => {
+                await claimLead(record.id)
+                message.success(labels.ui.claimSuccess)
+                await onRefresh()
+              }}
+            />
+          </Tooltip>
           <Select
             size="small"
             value={record.stage}
-            style={{ width: 96 }}
+            style={{ width: 90 }}
             onChange={async value => {
               await updateLeadStage(record.id, value as LeadStage)
               await onRefresh()
@@ -124,7 +190,10 @@ const LeadTable: React.FC<LeadTableProps> = ({
       loading={loading}
       dataSource={leads}
       columns={columns}
-      rowSelection={{ selectedRowKeys, onChange: onSelectionChange }}
+      size="middle"
+      tableLayout="fixed"
+      scroll={{ x: 1088 }}
+      rowSelection={{ selectedRowKeys, onChange: onSelectionChange, columnWidth: 48, fixed: true }}
       pagination={{
         current: page,
         pageSize,

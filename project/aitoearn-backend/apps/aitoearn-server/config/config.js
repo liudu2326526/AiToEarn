@@ -94,7 +94,7 @@ const {
 module.exports = {
   // 应用基础
   appDomain: APP_DOMAIN,
-  port: 3002,
+  port: 7001,
   environment: NODE_ENV,
   enableBadRequestDetails: true,
   superCode: SUPER_CODE || '',
