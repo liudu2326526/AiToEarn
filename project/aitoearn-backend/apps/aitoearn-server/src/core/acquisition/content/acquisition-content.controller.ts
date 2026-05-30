@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common'
 import { ApiTags } from '@nestjs/swagger'
 import { GetToken, TokenInfo } from '@yikart/aitoearn-auth'
 import { ApiDoc, UserType } from '@yikart/common'
@@ -7,16 +7,22 @@ import {
   CreateScriptTemplateDto,
   GenerateAcquisitionContentDto,
   ListAcquisitionContentDto,
+  ListHookTemplateDto,
+  ListScriptTemplateDto,
   ReviewAcquisitionContentDto,
   ScheduleAcquisitionContentDto,
+  UpdateHookTemplateDto,
   UpdatePlatformContentDto,
+  UpdateScriptTemplateDto,
   UpsertAccountOpsConfigDto,
 } from './acquisition-content.dto'
 import {
   AccountOpsConfigVo,
   AcquisitionContentListVo,
   AcquisitionContentVo,
+  HookTemplateListVo,
   HookTemplateVo,
+  ScriptTemplateListVo,
   ScriptTemplateVo,
 } from './acquisition-content.vo'
 import { ContentGenerationService } from './content-generation.service'
@@ -77,9 +83,16 @@ export class AcquisitionContentController {
   @ApiDoc({ summary: 'Upsert acquisition account operations config', body: UpsertAccountOpsConfigDto.schema, response: AccountOpsConfigVo })
   @Post('/strategy/accounts/:accountId/config')
   async upsertAccountConfig(@GetToken() token: TokenInfo, @Param('accountId') accountId: string, @Body() body: UpsertAccountOpsConfigDto) {
-    const config = await this.strategyTemplateService.upsertAccountConfig(accountId, body)
+    const config = await this.strategyTemplateService.upsertAccountConfig(token.id, accountId, body)
     if (!config) throw new AppException(ResponseCode.StrategyTemplateNotFound)
     return AccountOpsConfigVo.create(config)
+  }
+
+  @ApiDoc({ summary: 'List hook templates', query: ListHookTemplateDto.schema, response: HookTemplateListVo })
+  @Get('/strategy/hooks')
+  async listHookTemplates(@GetToken() token: TokenInfo, @Query() query: ListHookTemplateDto) {
+    const [list, total] = await this.strategyTemplateService.listHookTemplates(token.id, query)
+    return new HookTemplateListVo(list, total, query)
   }
 
   @ApiDoc({ summary: 'Create hook template', body: CreateHookTemplateDto.schema, response: HookTemplateVo })
@@ -89,10 +102,56 @@ export class AcquisitionContentController {
     return HookTemplateVo.create(template)
   }
 
+  @ApiDoc({ summary: 'Update hook template', body: UpdateHookTemplateDto.schema, response: HookTemplateVo })
+  @Patch('/strategy/hooks/:id')
+  async updateHookTemplate(@GetToken() token: TokenInfo, @Param('id') id: string, @Body() body: UpdateHookTemplateDto) {
+    const template = await this.strategyTemplateService.updateHookTemplate(token.id, id, body)
+    return HookTemplateVo.create(template)
+  }
+
+  @ApiDoc({ summary: 'Delete hook template' })
+  @Delete('/strategy/hooks/:id')
+  async deleteHookTemplate(@GetToken() token: TokenInfo, @Param('id') id: string) {
+    return await this.strategyTemplateService.deleteHookTemplate(token.id, id)
+  }
+
+  @ApiDoc({ summary: 'List script templates', query: ListScriptTemplateDto.schema, response: ScriptTemplateListVo })
+  @Get('/strategy/scripts')
+  async listScriptTemplates(@GetToken() token: TokenInfo, @Query() query: ListScriptTemplateDto) {
+    const [list, total] = await this.strategyTemplateService.listScriptTemplates(token.id, query)
+    return new ScriptTemplateListVo(list, total, query)
+  }
+
   @ApiDoc({ summary: 'Create script template', body: CreateScriptTemplateDto.schema, response: ScriptTemplateVo })
   @Post('/strategy/scripts')
   async createScriptTemplate(@GetToken() token: TokenInfo, @Body() body: CreateScriptTemplateDto) {
     const template = await this.strategyTemplateService.createScriptTemplate(token.id, body)
     return ScriptTemplateVo.create(template)
+  }
+
+  @ApiDoc({ summary: 'Update script template', body: UpdateScriptTemplateDto.schema, response: ScriptTemplateVo })
+  @Patch('/strategy/scripts/:id')
+  async updateScriptTemplate(@GetToken() token: TokenInfo, @Param('id') id: string, @Body() body: UpdateScriptTemplateDto) {
+    const template = await this.strategyTemplateService.updateScriptTemplate(token.id, id, body)
+    return ScriptTemplateVo.create(template)
+  }
+
+  @ApiDoc({ summary: 'Delete script template' })
+  @Delete('/strategy/scripts/:id')
+  async deleteScriptTemplate(@GetToken() token: TokenInfo, @Param('id') id: string) {
+    return await this.strategyTemplateService.deleteScriptTemplate(token.id, id)
+  }
+
+  @ApiDoc({ summary: 'List account operation configs' })
+  @Get('/strategy/accounts/configs')
+  async listAccountConfigs(@GetToken() token: TokenInfo) {
+    return { list: await this.strategyTemplateService.listAccountConfigs(token.id) }
+  }
+
+  @ApiDoc({ summary: 'Get acquisition account operations config', response: AccountOpsConfigVo })
+  @Get('/strategy/accounts/:accountId/config')
+  async getAccountConfig(@GetToken() token: TokenInfo, @Param('accountId') accountId: string) {
+    const config = await this.strategyTemplateService.getAccountConfig(token.id, accountId)
+    return config ? AccountOpsConfigVo.create(config) : null
   }
 }

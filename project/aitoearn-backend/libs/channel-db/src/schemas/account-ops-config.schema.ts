@@ -16,7 +16,10 @@ export enum CommentFetchCapabilityStatus {
 export class AccountOpsConfig extends BaseTemp {
   id: string
 
-  @Prop({ required: true, unique: true, index: true, type: String })
+  @Prop({ required: true, index: true, type: String })
+  userId: string
+
+  @Prop({ required: true, index: true, type: String })
   accountId: string
 
   @Prop({ type: Number, default: 10 })
@@ -78,3 +81,8 @@ export class AccountOpsConfig extends BaseTemp {
 }
 
 export const AccountOpsConfigSchema = SchemaFactory.createForClass(AccountOpsConfig)
+
+AccountOpsConfigSchema.index(
+  { userId: 1, accountId: 1 },
+  { unique: true, name: 'uniq_account_ops_config_user_account' },
+)

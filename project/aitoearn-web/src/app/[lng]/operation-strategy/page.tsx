@@ -1,5 +1,5 @@
-import { AcquisitionRoadmapPage } from '../_components/AcquisitionRoadmapPage'
+import OperationStrategyPage from './OperationStrategyPage'
 
-export default function OperationStrategyPage() {
-  return <AcquisitionRoadmapPage type="strategy" />
+export default function Page() {
+  return <OperationStrategyPage />
 }

@@ -17,6 +17,9 @@ export class HookTemplate extends BaseTemp {
   id: string
 
   @Prop({ required: true, index: true, type: String })
+  userId: string
+
+  @Prop({ required: true, index: true, type: String })
   name: string
 
   @Prop({ required: true, enum: HookTemplateCategory, index: true, type: String })
@@ -42,3 +45,6 @@ export class HookTemplate extends BaseTemp {
 }
 
 export const HookTemplateSchema = SchemaFactory.createForClass(HookTemplate)
+
+HookTemplateSchema.index({ userId: 1, name: 1 }, { unique: true, name: 'uniq_hook_template_user_name' })
+HookTemplateSchema.index({ userId: 1, enabled: 1, category: 1 }, { name: 'idx_hook_template_selection' })

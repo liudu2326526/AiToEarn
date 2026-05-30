@@ -25,7 +25,7 @@ export class AcquisitionService {
     const provider = this.providers[platform]
     if (!provider) {
       const defaultStatus = this.commentCapabilityService.getDefaultStatus(platform)
-      await this.commentCapabilityService.save(dto.accountId, defaultStatus.status, defaultStatus.reason)
+      await this.commentCapabilityService.save(userId, dto.accountId, defaultStatus.status, defaultStatus.reason)
       return {
         comments: [],
         cursor: dto.cursor || '',
@@ -41,7 +41,7 @@ export class AcquisitionService {
     const fetchBatch = 'fetchBatch' in dto && dto.fetchBatch ? dto.fetchBatch : uuidv4()
     const result = await provider.fetchWorkAndComments({ ...dto, platform, userId, fetchBatch })
     const enriched = { ...result, fetchBatch }
-    await this.commentCapabilityService.save(dto.accountId, enriched.capabilityStatus, enriched.capabilityReason, {
+    await this.commentCapabilityService.save(userId, dto.accountId, enriched.capabilityStatus, enriched.capabilityReason, {
       platform,
       fetchedAt: new Date().toISOString(),
     })
@@ -66,14 +66,16 @@ export class AcquisitionService {
     return await provider.refreshTokens(authorUserId)
   }
 
-  async getCapability(accountId: string, platformValue: AcquisitionPlatform | AcquisitionFetchWorkDto['platform']) {
+  async getCapability(userId: string, accountId: string, platformValue: AcquisitionPlatform | AcquisitionFetchWorkDto['platform']) {
     const platform = this.toPlatform(platformValue)
     const provider = this.providers[platform]
     if (!provider) {
-      return this.commentCapabilityService.getDefaultStatus(platform)
+      const defaultStatus = this.commentCapabilityService.getDefaultStatus(platform)
+      await this.commentCapabilityService.save(userId, accountId, defaultStatus.status, defaultStatus.reason)
+      return defaultStatus
     }
     const capability = await provider.getCapabilityStatus(accountId)
-    await this.commentCapabilityService.save(accountId, capability.status, capability.reason, capability.meta || {})
+    await this.commentCapabilityService.save(userId, accountId, capability.status, capability.reason, capability.meta || {})
     return capability
   }
 

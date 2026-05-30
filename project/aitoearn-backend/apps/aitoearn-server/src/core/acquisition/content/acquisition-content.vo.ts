@@ -52,6 +52,7 @@ export class AcquisitionContentListVo extends createPaginationVo(AcquisitionCont
 
 export const AccountOpsConfigVoSchema = z.object({
   id: z.string().optional(),
+  userId: z.string().optional(),
   accountId: z.string(),
   dailyPublishLimit: z.number().optional(),
   dailyInteractionLimit: z.number().optional(),
@@ -64,6 +65,9 @@ export const AccountOpsConfigVoSchema = z.object({
   enableCommentFetch: z.boolean().optional(),
   blockPublicContactInfo: z.boolean().optional(),
   sensitiveWords: z.array(z.string()).optional(),
+  commentFetchStatus: z.string().optional(),
+  commentFetchStatusReason: z.string().optional(),
+  commentFetchCheckedAt: z.coerce.date().optional(),
   createdAt: z.coerce.date().optional(),
   updatedAt: z.coerce.date().optional(),
 })
@@ -71,10 +75,15 @@ export class AccountOpsConfigVo extends createZodDto(AccountOpsConfigVoSchema, '
 
 export const HookTemplateVoSchema = z.object({
   id: z.string(),
+  userId: z.string(),
   name: z.string(),
+  category: z.string(),
   content: z.string(),
-  category: z.string().optional(),
+  weight: z.number(),
   enabled: z.boolean(),
+  applicablePlatforms: z.array(z.string()).default([]),
+  applicableCategories: z.array(z.string()).default([]),
+  applicableAccountIds: z.array(z.string()).default([]),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 })
@@ -83,10 +92,19 @@ export class HookTemplateListVo extends createPaginationVo(HookTemplateVoSchema,
 
 export const ScriptTemplateVoSchema = z.object({
   id: z.string(),
+  userId: z.string(),
   name: z.string(),
   content: z.string(),
   scene: z.string(),
+  variables: z.array(z.string()).default([]),
   enabled: z.boolean(),
+  applicableCategories: z.array(z.string()).default([]),
+  riskLevel: z.string(),
+  platformConstraints: z.object({
+    allowWechatId: z.boolean().default(false),
+    requireManualConfirm: z.boolean().default(true),
+    blockedPlatforms: z.array(z.string()).default([]),
+  }).optional(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 })

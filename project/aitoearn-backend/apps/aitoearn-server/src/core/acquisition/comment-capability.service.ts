@@ -7,13 +7,14 @@ export class CommentCapabilityService {
   constructor(private readonly accountOpsConfigRepository: AccountOpsConfigRepository) {}
 
   async save(
+    userId: string,
     accountId: string,
     status: AcquisitionCapabilityStatus,
     reason = '',
     meta: Record<string, unknown> = {},
   ) {
     const mapped = this.mapStatus(status)
-    return await this.accountOpsConfigRepository.updateCommentCapability(accountId, mapped, reason, meta)
+    return await this.accountOpsConfigRepository.updateCommentCapability(userId, accountId, mapped, reason, meta)
   }
 
   getDefaultStatus(platform: AcquisitionPlatform) {

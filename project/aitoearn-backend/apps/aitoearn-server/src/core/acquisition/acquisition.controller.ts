@@ -36,8 +36,8 @@ export class AcquisitionController {
 
   @ApiDoc({ summary: 'Get acquisition comment capability', query: AcquisitionCapabilityQueryDto.schema })
   @Get('/capability')
-  async getCapability(@Query() query: AcquisitionCapabilityQueryDto) {
-    return await this.acquisitionService.getCapability(query.accountId, query.platform as AcquisitionFetchWorkDto['platform'])
+  async getCapability(@GetToken() token: TokenInfo, @Query() query: AcquisitionCapabilityQueryDto) {
+    return await this.acquisitionService.getCapability(token.id, query.accountId, query.platform as AcquisitionFetchWorkDto['platform'])
   }
 
   @ApiDoc({ summary: 'List persisted acquisition comments', query: AcquisitionSnapshotQueryDto.schema })
