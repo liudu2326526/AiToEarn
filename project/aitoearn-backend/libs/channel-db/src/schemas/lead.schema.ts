@@ -82,6 +82,15 @@ export class Lead extends BaseTemp {
   @Prop({ required: true, index: true, type: String })
   postId: string
 
+  @Prop({ type: String, default: '' })
+  postTitle: string
+
+  @Prop({ type: String, default: '' })
+  postUrl: string
+
+  @Prop({ type: String, default: '' })
+  postCover: string
+
   @Prop({ type: String, default: '', index: true })
   commentId: string
 

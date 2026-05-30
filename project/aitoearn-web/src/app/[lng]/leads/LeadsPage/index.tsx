@@ -18,12 +18,14 @@ import {
   updateLeadAssignee,
   updateLeadStage,
 } from '@/api/leads'
+import type { MonitoredPostItem } from '@/api/workData'
+import { listMonitoredPosts } from '@/api/workData'
 import { useTransClient } from '@/app/i18n/client'
 import LeadDetailDrawer from '../components/LeadDetailDrawer'
 import LeadTable from '../components/LeadTable'
 import LeadToolbar from '../components/LeadToolbar'
 import PrivateMessageStatusPanel from '../components/PrivateMessageStatusPanel'
-import type { LeadLabels } from '../components/types'
+import type { LeadLabels, LeadPostOption } from '../components/types'
 
 const { Text, Title } = Typography
 
@@ -88,6 +90,8 @@ const LeadsPage: React.FC = () => {
   const [platform, setPlatform] = useState<AcquisitionPlatform | undefined>()
   const [stage, setStage] = useState<LeadStage | undefined>()
   const [status, setStatus] = useState<LeadStatus | undefined>()
+  const [postId, setPostId] = useState<string | undefined>()
+  const [postOptions, setPostOptions] = useState<LeadPostOption[]>([])
   const [keyword, setKeyword] = useState('')
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [batchAssigneeOpen, setBatchAssigneeOpen] = useState(false)
@@ -137,11 +141,13 @@ const LeadsPage: React.FC = () => {
       platform: t('leads.filter.platform'),
       stage: t('leads.filter.stage'),
       status: t('leads.filter.status'),
+      post: t('leads.filter.post'),
       searchPlaceholder: t('leads.filter.searchPlaceholder'),
       refresh: t('leads.actions.refresh'),
       materialize: t('leads.actions.materialize'),
       batchAssign: t('leads.actions.batchAssign'),
       platformAccount: t('leads.columns.platformAccount'),
+      sourcePost: t('leads.columns.sourcePost'),
       sourceUser: t('leads.columns.sourceUser'),
       commentContent: t('leads.columns.commentContent'),
       stageStatus: t('leads.columns.stageStatus'),
@@ -192,6 +198,7 @@ const LeadsPage: React.FC = () => {
     platform,
     stage,
     status,
+    postId,
     keyword: overrides.keyword ?? (keyword || undefined),
   })
 
@@ -236,12 +243,26 @@ const LeadsPage: React.FC = () => {
     }
   }
 
+  const fetchPostOptions = async () => {
+    try {
+      const data = await listMonitoredPosts({ page: 1, pageSize: 100 })
+      setPostOptions(data.list.map((post: MonitoredPostItem) => ({
+        value: post.postId,
+        label: post.title || post.postId,
+        post,
+      })))
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
   useEffect(() => {
     fetchLeads(1, pageSize)
-  }, [platform, stage, status])
+  }, [platform, stage, status, postId])
 
   useEffect(() => {
     fetchCapability()
+    fetchPostOptions()
   }, [])
 
   const openDetail = async (lead: LeadItem) => {
@@ -336,11 +357,14 @@ const LeadsPage: React.FC = () => {
           platform={platform}
           stage={stage}
           status={status}
+          postId={postId}
+          postOptions={postOptions}
           materializing={materializing}
           hasSelection={selectedRowKeys.length > 0}
           onPlatformChange={setPlatform}
           onStageChange={setStage}
           onStatusChange={setStatus}
+          onPostChange={setPostId}
           onSearch={value => { setKeyword(value); fetchLeads(1, pageSize, { keyword: value || undefined }) }}
           onRefresh={() => fetchLeads()}
           onMaterialize={runMaterialize}

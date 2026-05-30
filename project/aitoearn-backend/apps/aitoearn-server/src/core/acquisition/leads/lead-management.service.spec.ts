@@ -13,11 +13,14 @@ describe('LeadManagementService', () => {
     append: vi.fn(),
     listByLeadId: vi.fn(),
   }
+  const monitoredPostRepository = {
+    findByUserPostIdentities: vi.fn(),
+  }
   let service: LeadManagementService
 
   beforeEach(() => {
     vi.clearAllMocks()
-    service = new LeadManagementService(leadRepository as any, leadActivityLogRepository as any)
+    service = new LeadManagementService(leadRepository as any, leadActivityLogRepository as any, monitoredPostRepository as any)
   })
 
   it('changes stage and derives working status', async () => {
@@ -65,5 +68,42 @@ describe('LeadManagementService', () => {
     await expect(service.timeline('user-1', 'lead-1'))
       .rejects.toMatchObject(new AppException(ResponseCode.LeadNotFound))
     expect(leadActivityLogRepository.listByLeadId).not.toHaveBeenCalled()
+  })
+
+  it('enriches listed leads with their source post context', async () => {
+    leadRepository.listByUser.mockResolvedValue([
+      [
+        {
+          id: 'lead-1',
+          platform: 'xhs',
+          accountId: 'account-1',
+          postId: 'post-1',
+          sourceContent: '衣服求链',
+        },
+      ],
+      1,
+    ])
+    monitoredPostRepository.findByUserPostIdentities.mockResolvedValue([
+      {
+        platform: 'xhs',
+        accountId: 'account-1',
+        postId: 'post-1',
+        title: '海边的感觉',
+        postUrl: 'https://www.xiaohongshu.com/explore/post-1',
+        cover: 'https://example.com/cover.jpg',
+      },
+    ])
+
+    const [list, total] = await service.list('user-1', { page: 1, pageSize: 20 } as any)
+
+    expect(total).toBe(1)
+    expect(list[0]).toEqual(expect.objectContaining({
+      postTitle: '海边的感觉',
+      postUrl: 'https://www.xiaohongshu.com/explore/post-1',
+      postCover: 'https://example.com/cover.jpg',
+    }))
+    expect(monitoredPostRepository.findByUserPostIdentities).toHaveBeenCalledWith('user-1', [
+      { platform: 'xhs', accountId: 'account-1', postId: 'post-1' },
+    ])
   })
 })

@@ -96,6 +96,26 @@ const LeadTable: React.FC<LeadTableProps> = ({
       ),
     },
     {
+      title: labels.ui.sourcePost,
+      key: 'post',
+      width: 180,
+      render: (_: unknown, record: LeadItem) => {
+        const title = record.postTitle || record.postId
+        const content = (
+          <Space direction="vertical" size={2} style={{ minWidth: 0 }}>
+            <Text strong style={{ ...ellipsisTextStyle, maxWidth: 132 }}>{title}</Text>
+            <Text type="secondary" style={{ ...ellipsisTextStyle, maxWidth: 132, fontSize: 12 }}>{record.postId}</Text>
+          </Space>
+        )
+
+        return record.postUrl ? (
+          <Tooltip title={record.postUrl}>
+            <a href={record.postUrl} target="_blank" rel="noreferrer">{content}</a>
+          </Tooltip>
+        ) : content
+      },
+    },
+    {
       title: labels.ui.commentContent,
       dataIndex: 'sourceContent',
       key: 'sourceContent',
@@ -192,7 +212,7 @@ const LeadTable: React.FC<LeadTableProps> = ({
       columns={columns}
       size="middle"
       tableLayout="fixed"
-      scroll={{ x: 1088 }}
+      scroll={{ x: 1268 }}
       rowSelection={{ selectedRowKeys, onChange: onSelectionChange, columnWidth: 48, fixed: true }}
       pagination={{
         current: page,

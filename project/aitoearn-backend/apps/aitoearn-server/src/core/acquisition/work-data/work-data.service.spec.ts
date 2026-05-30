@@ -75,6 +75,34 @@ describe('WorkDataService', () => {
     }))
   })
 
+  it('stores xhs token metadata from a manual url and ignores virtual multipost uid', async () => {
+    const tokenUpdatedAt = new Date('2026-05-30T07:45:00.000Z')
+    vi.useFakeTimers()
+    vi.setSystemTime(tokenUpdatedAt)
+    accountRepository.getAccountById.mockResolvedValue({ uid: 'multipost-rednote' })
+    monitoredPostRepository.findLatestAuthorUserIdByAccount.mockResolvedValue('')
+    monitoredPostRepository.upsertByIdentity.mockResolvedValue({
+      userId: 'user-1',
+      postId: 'abc123',
+      source: 'manual',
+    })
+
+    await service.createManual('user-1', {
+      platform: 'xhs',
+      accountId: 'xhs_multipost-rednote_web',
+      postUrl: 'https://www.xiaohongshu.com/explore/abc123?xsec_token=manual-token&xsec_source=pc_user',
+    })
+
+    expect(monitoredPostRepository.upsertByIdentity).toHaveBeenCalledWith(expect.objectContaining({
+      postId: 'abc123',
+      authorUserId: '',
+      xsecToken: 'manual-token',
+      xsecSource: 'pc_user',
+      xsecTokenUpdatedAt: tokenUpdatedAt,
+    }))
+    vi.useRealTimers()
+  })
+
   it('lists comments with pagination and data source only for the current user', async () => {
     const mockComments = [[{ content: 'nice', dataSource: 'xhs_plugin_api' }], 1]
     commentSnapshotRepository.listWithPagination.mockResolvedValue(mockComments)
@@ -220,6 +248,50 @@ describe('WorkDataService', () => {
     expect(acquisitionService.fetchNow).toHaveBeenCalledWith('user-1', expect.objectContaining({
       postUrl: 'https://www.xiaohongshu.com/explore/post-1?xsec_token=token-1&xsec_source=pc_user',
     }))
+  })
+
+  it('uses xhs token embedded in stored url before refreshing virtual author profile', async () => {
+    const tokenUpdatedAt = new Date('2026-05-30T07:50:00.000Z')
+    vi.useFakeTimers()
+    vi.setSystemTime(tokenUpdatedAt)
+    monitoredPostRepository.getByIdentity.mockResolvedValue({
+      id: 'monitored-1',
+      userId: 'user-1',
+      platform: 'xhs',
+      accountId: 'xhs_multipost-rednote_web',
+      postId: 'post-1',
+      postUrl: 'https://www.xiaohongshu.com/explore/post-1?xsec_token=url-token&xsec_source=pc_user',
+      authorUserId: 'multipost-rednote',
+      xsecToken: '',
+      xsecSource: '',
+      xsecTokenUpdatedAt: null,
+    })
+    accountOpsConfigRepository.getByAccountId.mockResolvedValue(null)
+    acquisitionService.fetchNow.mockResolvedValue({
+      capabilityStatus: 'ready',
+      postSaved: false,
+      fetchBatch: 'batch-1',
+    })
+    monitoredPostRepository.updateById.mockResolvedValue({
+      fetchStatus: 'ready',
+    })
+
+    await service.processWorkerFetch('user-1', {
+      accountId: 'xhs_multipost-rednote_web',
+      platform: 'xhs',
+      postUrl: 'https://www.xiaohongshu.com/explore/post-1',
+    })
+
+    expect(acquisitionService.refreshTokens).not.toHaveBeenCalled()
+    expect(monitoredPostRepository.updateById).toHaveBeenCalledWith('monitored-1', expect.objectContaining({
+      xsecToken: 'url-token',
+      xsecSource: 'pc_user',
+      xsecTokenUpdatedAt: tokenUpdatedAt,
+    }))
+    expect(acquisitionService.fetchNow).toHaveBeenCalledWith('user-1', expect.objectContaining({
+      postUrl: 'https://www.xiaohongshu.com/explore/post-1?xsec_token=url-token&xsec_source=pc_user',
+    }))
+    vi.useRealTimers()
   })
 
   it('keeps xhs worker fetch pending when token is unavailable', async () => {

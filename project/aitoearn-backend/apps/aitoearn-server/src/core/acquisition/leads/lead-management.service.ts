@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { LeadActivityLogRepository, LeadRepository } from '@yikart/channel-db'
+import { LeadActivityLogRepository, LeadRepository, MonitoredPostRepository } from '@yikart/channel-db'
 import { AppException, ResponseCode } from '@yikart/common'
 import { LeadListQueryDto, LeadStatsQueryDto, PrivateMessageCapabilityQueryDto } from './acquisition-leads.dto'
 
@@ -17,10 +17,12 @@ export class LeadManagementService {
   constructor(
     private readonly leadRepository: LeadRepository,
     private readonly leadActivityLogRepository: LeadActivityLogRepository,
+    private readonly monitoredPostRepository: MonitoredPostRepository,
   ) {}
 
   async list(userId: string, query: LeadListQueryDto) {
-    return await this.leadRepository.listByUser(userId, query)
+    const [list, total] = await this.leadRepository.listByUser(userId, query)
+    return [await this.enrichPostContext(userId, list as any[]), total] as const
   }
 
   async stats(userId: string, query: LeadStatsQueryDto) {
@@ -30,7 +32,8 @@ export class LeadManagementService {
   async detail(userId: string, id: string) {
     const lead = await this.leadRepository.getByIdAndUser(id, userId)
     if (!lead) throw new AppException(ResponseCode.LeadNotFound)
-    return lead
+    const [enriched] = await this.enrichPostContext(userId, [lead] as any[])
+    return enriched || lead
   }
 
   async timeline(userId: string, id: string) {
@@ -124,5 +127,32 @@ export class LeadManagementService {
             : 'Kwai private-message ingestion provider is not implemented yet.',
       })),
     }
+  }
+
+  private async enrichPostContext(userId: string, list: any[]) {
+    const identities = list
+      .filter(item => item?.platform && item?.accountId && item?.postId)
+      .map(item => ({
+        platform: item.platform,
+        accountId: item.accountId,
+        postId: item.postId,
+      }))
+    if (identities.length === 0) return list
+
+    const posts = await this.monitoredPostRepository.findByUserPostIdentities(
+      userId,
+      identities,
+    )
+    const postMap = new Map(posts.map(post => [`${post.platform}:${post.accountId}:${post.postId}`, post]))
+    return list.map(item => {
+      const post = postMap.get(`${item.platform}:${item.accountId}:${item.postId}`)
+      if (!post) return item
+      return {
+        ...item,
+        postTitle: item.postTitle || post.title || '',
+        postUrl: item.postUrl || post.postUrl || '',
+        postCover: item.postCover || post.cover || '',
+      }
+    })
   }
 }

@@ -111,9 +111,11 @@ Remaining work:
   - Server routes for manual create, list, detail, fetch-now, status update, snapshots, and comments.
 - `project/aitoearn-backend/apps/aitoearn-server/src/core/acquisition/work-data/work-data.service.ts`
   - `createManual()` creates `source: manual` monitored posts.
+  - For XHS manual URLs, `createManual()` persists `xsec_token` metadata from the URL and does not treat MultiPost virtual account ids such as `multipost-rednote` as real author profile ids.
   - `fetchNow()` handles user-triggered immediate collection.
   - `processWorkerFetch()` handles queue-triggered collection.
   - `updateMonitoredPostFromFetchResult()` updates title, cover, latest metrics, latest comment count, snapshot id, fetch status, and fetch log.
+  - Before XHS collection, `resolveFreshPostUrl()` uses fresh stored token metadata first, then falls back to token metadata embedded in the saved `postUrl`; only missing URL/token metadata with a real author profile id triggers profile token refresh.
 
 ## Acquisition And XHS Bridge Path
 

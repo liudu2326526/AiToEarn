@@ -3,18 +3,21 @@ import { Button, Card, Input, Select, Space } from 'antd'
 import { ReloadOutlined, UserSwitchOutlined } from '@ant-design/icons'
 import type { AcquisitionPlatform } from '@/api/acquisition'
 import type { LeadStage, LeadStatus } from '@/api/leads'
-import type { LeadLabels } from '../types'
+import type { LeadLabels, LeadPostOption } from '../types'
 
 interface LeadToolbarProps {
   labels: LeadLabels
   platform?: AcquisitionPlatform
   stage?: LeadStage
   status?: LeadStatus
+  postId?: string
+  postOptions: LeadPostOption[]
   materializing: boolean
   hasSelection: boolean
   onPlatformChange: (value?: AcquisitionPlatform) => void
   onStageChange: (value?: LeadStage) => void
   onStatusChange: (value?: LeadStatus) => void
+  onPostChange: (value?: string) => void
   onSearch: (value: string) => void
   onRefresh: () => void
   onMaterialize: () => void
@@ -53,11 +56,14 @@ const LeadToolbar: React.FC<LeadToolbarProps> = ({
   platform,
   stage,
   status,
+  postId,
+  postOptions,
   materializing,
   hasSelection,
   onPlatformChange,
   onStageChange,
   onStatusChange,
+  onPostChange,
   onSearch,
   onRefresh,
   onMaterialize,
@@ -89,6 +95,16 @@ const LeadToolbar: React.FC<LeadToolbarProps> = ({
           style={{ width: 132 }}
           onChange={onStatusChange}
           options={toOptions(labels.status)}
+        />
+        <Select
+          allowClear
+          showSearch
+          placeholder={labels.ui.post}
+          value={postId}
+          style={{ width: 220 }}
+          optionFilterProp="label"
+          onChange={onPostChange}
+          options={postOptions.map(option => ({ value: option.value, label: option.label }))}
         />
         <Input.Search
           placeholder={labels.ui.searchPlaceholder}

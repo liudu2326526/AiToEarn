@@ -45,6 +45,16 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <Card size="small" title={labels.ui.sourceComment}>
           <Space direction="vertical" size={8}>
+            <Space direction="vertical" size={2}>
+              <Text type="secondary">{labels.ui.sourcePost}</Text>
+              {activeLead.postUrl ? (
+                <a href={activeLead.postUrl} target="_blank" rel="noreferrer">
+                  {activeLead.postTitle || activeLead.postId}
+                </a>
+              ) : (
+                <Text>{activeLead.postTitle || activeLead.postId}</Text>
+              )}
+            </Space>
             <Space>
               <Avatar src={activeLead.userAvatar}>{activeLead.userName?.slice(0, 1)}</Avatar>
               <Text strong>{activeLead.userName || labels.ui.unknownUser}</Text>

@@ -9,6 +9,9 @@ export interface LeadItem {
   platform: AcquisitionPlatform
   accountId: string
   postId: string
+  postTitle?: string
+  postUrl?: string
+  postCover?: string
   commentId: string
   parentCommentId: string
   userName: string

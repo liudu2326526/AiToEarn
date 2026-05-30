@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import {
   AccountOpsConfigRepository,
   HookTemplateRepository,
@@ -25,6 +25,8 @@ const PRIVATE_WECHAT_SCENES = new Set<string>([
 
 @Injectable()
 export class StrategyTemplateService {
+  private readonly logger = new Logger(StrategyTemplateService.name)
+
   constructor(
     private readonly hookTemplateRepository: HookTemplateRepository,
     private readonly scriptTemplateRepository: ScriptTemplateRepository,
@@ -32,6 +34,18 @@ export class StrategyTemplateService {
     private readonly sensitiveWordService: SensitiveWordService,
     private readonly channelAccountService: ChannelAccountService,
   ) {}
+
+  async onModuleInit() {
+    try {
+      const dropped = await this.accountOpsConfigRepository.dropLegacyAccountIdUniqueIndex()
+      if (dropped) {
+        this.logger.warn('Dropped legacy unique index account_ops_config.accountId_1')
+      }
+    }
+    catch (error) {
+      this.logger.error(error, 'Failed to drop legacy account_ops_config.accountId_1 index')
+    }
+  }
 
   async listHookTemplates(userId: string, query: ListHookTemplateDto) {
     return await this.hookTemplateRepository.listByUser(userId, query)

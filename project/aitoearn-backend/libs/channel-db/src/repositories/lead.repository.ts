@@ -98,6 +98,9 @@ export class LeadRepository extends BaseRepository<Lead> {
     platform: string
     accountId: string
     postId: string
+    postTitle?: string
+    postUrl?: string
+    postCover?: string
     commentId: string
     parentCommentId: string
     userName: string
@@ -132,6 +135,9 @@ export class LeadRepository extends BaseRepository<Lead> {
           userName: input.userName,
           userAvatar: input.userAvatar,
           sourceContent: input.sourceContent,
+          postTitle: input.postTitle || '',
+          postUrl: input.postUrl || '',
+          postCover: input.postCover || '',
         },
       } as any,
       {
@@ -151,5 +157,61 @@ export class LeadRepository extends BaseRepository<Lead> {
       lead,
       created: Boolean(result?.lastErrorObject?.upserted),
     }
+  }
+
+  async markAuthorReplied(input: {
+    userId: string
+    platform: string
+    accountId: string
+    postId: string
+    parentCommentId: string
+    repliedToUserName?: string
+  }) {
+    const filter: FilterQuery<Lead> = {
+      userId: input.userId,
+      platform: input.platform,
+      accountId: input.accountId,
+      postId: input.postId,
+    }
+
+    if (input.repliedToUserName) {
+      filter.$or = [
+        { userName: input.repliedToUserName, parentCommentId: input.parentCommentId || '' },
+        { userName: input.repliedToUserName, commentId: input.parentCommentId },
+      ]
+    }
+    else {
+      filter.commentId = input.parentCommentId
+    }
+
+    return await this.leadModel.findOneAndUpdate(
+      filter,
+      {
+        $set: {
+          stage: LeadStage.Replied,
+          status: LeadStatus.InProgress,
+          lastFollowUpAt: new Date(),
+        },
+      },
+      { new: true },
+    ).lean({ virtuals: true }).exec()
+  }
+
+  async deleteByCommentIdentity(input: {
+    userId: string
+    platform: string
+    accountId: string
+    postId: string
+    commentId: string
+    parentCommentId: string
+  }) {
+    return await this.deleteOne({
+      userId: input.userId,
+      platform: input.platform,
+      accountId: input.accountId,
+      postId: input.postId,
+      commentId: input.commentId,
+      parentCommentId: input.parentCommentId || '',
+    } as any)
   }
 }

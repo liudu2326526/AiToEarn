@@ -1,7 +1,7 @@
 'use client'
 
 import type { ColumnsType } from 'antd/es/table'
-import { Alert, Button, Drawer, Form, Input, Popconfirm, Select, Space, Switch, Table, message } from 'antd'
+import { Button, Drawer, Form, Input, Popconfirm, Select, Space, Switch, Table, message } from 'antd'
 import { Plus, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
@@ -10,15 +10,12 @@ import {
   listScriptTemplates,
   updateScriptTemplate,
 } from '@/api/operationStrategy'
-import type { AcquisitionPlatform } from '@/api/types/acquisitionContent'
 import type {
   CreateScriptTemplatePayload,
   ScriptTemplate,
-  ScriptTemplateRiskLevel,
   ScriptTemplateScene,
 } from '@/api/types/operationStrategy'
 import { useTransClient } from '@/app/i18n/client'
-import StrategyStatusTag from '../StrategyStatusTag'
 
 const SCRIPT_SCENES: ScriptTemplateScene[] = [
   'comment_ask_price',
@@ -32,21 +29,16 @@ const SCRIPT_SCENES: ScriptTemplateScene[] = [
   'private_message_wechat_guide',
 ]
 
-const RISK_LEVELS: ScriptTemplateRiskLevel[] = ['low', 'medium', 'high']
-const PLATFORM_OPTIONS: AcquisitionPlatform[] = ['xhs', 'douyin', 'kwai']
+const DEFAULT_PLATFORM_CONSTRAINTS = {
+  allowWechatId: false,
+  requireManualConfirm: false,
+  blockedPlatforms: [],
+}
 
 function formatDate(value?: string) {
   if (!value)
     return '-'
   return new Date(value).toLocaleString()
-}
-
-function getRiskColor(risk: ScriptTemplateRiskLevel) {
-  if (risk === 'high')
-    return 'error'
-  if (risk === 'medium')
-    return 'warning'
-  return 'success'
 }
 
 export default function ScriptTemplateManager() {
@@ -55,32 +47,17 @@ export default function ScriptTemplateManager() {
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
-  const [filters, setFilters] = useState<{ scene?: ScriptTemplateScene; riskLevel?: ScriptTemplateRiskLevel; enabled?: boolean; keyword?: string }>({})
+  const [filters, setFilters] = useState<{ scene?: ScriptTemplateScene; enabled?: boolean; keyword?: string }>({})
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [active, setActive] = useState<ScriptTemplate | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form] = Form.useForm<CreateScriptTemplatePayload>()
-  const allowWechatId = Form.useWatch(['platformConstraints', 'allowWechatId'], form)
 
   const sceneOptions = useMemo(() => {
     return SCRIPT_SCENES.map(value => ({
       value,
       label: t(`operationStrategy.scenes.${value}`),
-    }))
-  }, [t])
-
-  const riskOptions = useMemo(() => {
-    return RISK_LEVELS.map(value => ({
-      value,
-      label: t(`operationStrategy.risk.${value}`),
-    }))
-  }, [t])
-
-  const platformOptions = useMemo(() => {
-    return PLATFORM_OPTIONS.map(value => ({
-      value,
-      label: t(`acquisition.platform.${value}`),
     }))
   }, [t])
 
@@ -118,28 +95,16 @@ export default function ScriptTemplateManager() {
       enabled: true,
       applicableCategories: [],
       riskLevel: 'low',
-      platformConstraints: {
-        allowWechatId: false,
-        requireManualConfirm: true,
-        blockedPlatforms: [],
-      },
+      platformConstraints: DEFAULT_PLATFORM_CONSTRAINTS,
     })
     setDrawerOpen(true)
   }
 
   function openEdit(record: ScriptTemplate) {
     setActive(record)
-    const platformConstraints = Object.assign(
-      {
-        allowWechatId: false,
-        requireManualConfirm: true,
-        blockedPlatforms: [],
-      },
-      record.platformConstraints || {},
-    )
     form.setFieldsValue({
       ...record,
-      platformConstraints,
+      platformConstraints: record.platformConstraints || DEFAULT_PLATFORM_CONSTRAINTS,
     })
     setDrawerOpen(true)
   }
@@ -148,10 +113,15 @@ export default function ScriptTemplateManager() {
     setSaving(true)
     try {
       const values = await form.validateFields()
+      const payload: CreateScriptTemplatePayload = {
+        ...values,
+        riskLevel: active?.riskLevel || values.riskLevel || 'low',
+        platformConstraints: active?.platformConstraints || values.platformConstraints || DEFAULT_PLATFORM_CONSTRAINTS,
+      }
       if (active)
-        await updateScriptTemplate(active.id, values)
+        await updateScriptTemplate(active.id, payload)
       else
-        await createScriptTemplate(values)
+        await createScriptTemplate(payload)
       message.success(t('operationStrategy.messages.saved'))
       setDrawerOpen(false)
       await load()
@@ -210,15 +180,6 @@ export default function ScriptTemplateManager() {
       render: (_, record) => record.variables.join(', ') || '-',
     },
     {
-      title: t('operationStrategy.columns.riskLevel'),
-      width: 110,
-      render: (_, record) => (
-        <StrategyStatusTag color={getRiskColor(record.riskLevel)}>
-          {t(`operationStrategy.risk.${record.riskLevel}`)}
-        </StrategyStatusTag>
-      ),
-    },
-    {
       title: t('operationStrategy.columns.enabled'),
       width: 120,
       render: (_, record) => (
@@ -265,13 +226,6 @@ export default function ScriptTemplateManager() {
             placeholder={t('operationStrategy.filters.scene')}
             options={sceneOptions}
             onChange={scene => updateFilters({ scene })}
-          />
-          <Select
-            allowClear
-            style={{ width: 150 }}
-            placeholder={t('operationStrategy.filters.riskLevel')}
-            options={riskOptions}
-            onChange={riskLevel => updateFilters({ riskLevel })}
           />
           <Select
             allowClear
@@ -333,7 +287,7 @@ export default function ScriptTemplateManager() {
           <Form.Item name="name" label={t('operationStrategy.fields.name')} rules={[{ required: true, message: t('operationStrategy.validation.required') }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="scene" label={t('operationStrategy.fields.scene')} rules={[{ required: true, message: t('operationStrategy.validation.required') }]}>
+          <Form.Item name="scene" label={t('operationStrategy.fields.replyStyle')} rules={[{ required: true, message: t('operationStrategy.validation.required') }]}>
             <Select options={sceneOptions} />
           </Form.Item>
           <Form.Item
@@ -354,26 +308,6 @@ export default function ScriptTemplateManager() {
           </Form.Item>
           <Form.Item name="applicableCategories" label={t('operationStrategy.fields.applicableCategories')}>
             <Select mode="tags" />
-          </Form.Item>
-          <Form.Item name="riskLevel" label={t('operationStrategy.fields.riskLevel')}>
-            <Select options={riskOptions} />
-          </Form.Item>
-          <Form.Item name={['platformConstraints', 'allowWechatId']} label={t('operationStrategy.fields.allowWechatId')} valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          {allowWechatId ? (
-            <Alert
-              type="warning"
-              showIcon
-              style={{ marginBottom: 16 }}
-              message={t('operationStrategy.scripts.wechatPrivateOnly')}
-            />
-          ) : null}
-          <Form.Item name={['platformConstraints', 'requireManualConfirm']} label={t('operationStrategy.fields.requireManualConfirm')} valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          <Form.Item name={['platformConstraints', 'blockedPlatforms']} label={t('operationStrategy.fields.blockedPlatforms')}>
-            <Select mode="multiple" options={platformOptions} />
           </Form.Item>
         </Form>
       </Drawer>

@@ -1,5 +1,6 @@
 import type { AcquisitionPlatform } from '@/api/acquisition'
 import type { LeadStage, LeadStatus } from '@/api/leads'
+import type { MonitoredPostItem } from '@/api/workData'
 
 export interface LeadLabels {
   stage: Record<LeadStage, string>
@@ -7,6 +8,12 @@ export interface LeadLabels {
   platform: Record<AcquisitionPlatform, string>
   capabilityStatus: Record<string, string>
   ui: Record<string, string>
+}
+
+export interface LeadPostOption {
+  value: string
+  label: string
+  post: MonitoredPostItem
 }
 
 export const statusColor: Record<LeadStatus, string> = {

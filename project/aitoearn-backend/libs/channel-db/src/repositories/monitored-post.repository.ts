@@ -60,6 +60,21 @@ export class MonitoredPostRepository extends BaseRepository<MonitoredPost> {
     return await this.monitoredPostModel.findOne({ userId, platform, accountId, postId })
   }
 
+  async findByUserPostIdentities(userId: string, identities: Array<{ platform: string; accountId: string; postId: string }>) {
+    if (identities.length === 0) return []
+    const unique = Array.from(
+      new Map(identities.map(item => [`${item.platform}:${item.accountId}:${item.postId}`, item])).values(),
+    )
+    return await this.monitoredPostModel.find({
+      userId,
+      $or: unique.map(item => ({
+        platform: item.platform,
+        accountId: item.accountId,
+        postId: item.postId,
+      })),
+    }).lean({ virtuals: true }).exec()
+  }
+
   async findLatestAuthorUserIdByAccount(userId: string, platform: string, accountId: string): Promise<string> {
     const post = await this.monitoredPostModel
       .findOne({

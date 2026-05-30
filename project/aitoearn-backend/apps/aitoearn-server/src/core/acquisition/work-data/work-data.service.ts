@@ -74,9 +74,23 @@ export class WorkDataService {
       throw new AppException(ResponseCode.MonitoredPostUrlUnparseable)
     }
 
-    // 查询账号的 uid 作为 authorUserId
+    const xhsUrlMeta = dto.platform === AcquisitionPlatform.Xhs ? this.extractXhsUrlMeta(dto.postUrl) : {}
+
+    // 查询账号的 uid 作为 authorUserId；MultiPost 虚拟账号不能当成真实小红书主页 ID。
     const account = await this.accountRepository.getAccountById(dto.accountId)
-    const authorUserId = account?.uid || ''
+    const rawAuthorUserId = xhsUrlMeta.authorUserId || account?.uid || ''
+    const authorUserId = this.isVirtualXhsAuthorUserId(dto.platform, rawAuthorUserId)
+      ? await this.monitoredPostRepository.findLatestAuthorUserIdByAccount(userId, dto.platform, dto.accountId)
+      : rawAuthorUserId
+    const xsecToken = xhsUrlMeta.xsecToken || ''
+    const xsecSource = xhsUrlMeta.xsecSource || (xsecToken ? 'pc_user' : '')
+    const tokenFields = xsecToken
+      ? {
+          xsecToken,
+          xsecSource,
+          xsecTokenUpdatedAt: new Date(),
+        }
+      : {}
 
     return await this.monitoredPostRepository.upsertByIdentity({
       userId,
@@ -88,6 +102,7 @@ export class WorkDataService {
       monitorStatus: 'active',
       fetchStatus: 'idle',
       authorUserId,
+      ...tokenFields,
     })
   }
 
@@ -145,6 +160,7 @@ export class WorkDataService {
    * token 缓存未过期则直接拼链接；过期/缺失则回作者主页刷新该账号全部作品 token 再拼。
    */
   private async resolveFreshPostUrl(userId: string, post: {
+    id?: string
     platform: string
     accountId: string
     postId: string
@@ -167,8 +183,28 @@ export class WorkDataService {
       return this.buildXhsPostUrl(post.postId, post.xsecToken!, post.xsecSource)
     }
 
+    const xhsUrlMeta = this.extractXhsUrlMeta(post.postUrl)
+    if (xhsUrlMeta.xsecToken) {
+      this.logger.log(`[resolveFreshPostUrl] use token from stored url postId=${post.postId}`)
+      const xsecSource = xhsUrlMeta.xsecSource || 'pc_user'
+      const xsecTokenUpdatedAt = new Date()
+      if (post.id) {
+        await this.monitoredPostRepository.updateById(post.id, {
+          xsecToken: xhsUrlMeta.xsecToken,
+          xsecSource,
+          xsecTokenUpdatedAt,
+        })
+      }
+      return this.buildXhsPostUrl(post.postId, xhsUrlMeta.xsecToken, xsecSource)
+    }
+
     if (!post.authorUserId) {
       this.logger.warn(`[resolveFreshPostUrl] skip token refresh: platform=${post.platform} authorUserId=(empty) postId=${post.postId}`)
+      return null
+    }
+
+    if (this.isVirtualXhsAuthorUserId(post.platform, post.authorUserId)) {
+      this.logger.warn(`[resolveFreshPostUrl] skip token refresh: virtual authorUserId=${post.authorUserId} postId=${post.postId}`)
       return null
     }
 

@@ -32,6 +32,23 @@ export class AccountOpsConfigRepository extends BaseRepository<AccountOpsConfig>
     return await this.accountOpsConfigModel.find({ userId }, undefined, { sort: { updatedAt: -1 } }).lean({ virtuals: true }).exec()
   }
 
+  async dropLegacyAccountIdUniqueIndex() {
+    const indexes = await this.accountOpsConfigModel.collection.indexes()
+    const legacyIndex = indexes.find(index => (
+      index.name === 'accountId_1'
+      && index.unique === true
+      && index.key
+      && Object.keys(index.key).length === 1
+      && index.key['accountId'] === 1
+    ))
+
+    if (!legacyIndex)
+      return false
+
+    await this.accountOpsConfigModel.collection.dropIndex('accountId_1')
+    return true
+  }
+
   async updateCommentCapability(
     userId: string,
     accountId: string,

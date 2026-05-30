@@ -56,11 +56,45 @@ export class LeadMaterializationService {
       remainingComments -= comments.length
 
       for (const comment of comments) {
+        const authorReply = this.parseAuthorReply(comment.content || '')
+        if (authorReply.isAuthorReply) {
+          await this.leadRepository.deleteByCommentIdentity({
+            userId,
+            platform: comment.platform,
+            accountId: comment.accountId,
+            postId: comment.postId,
+            commentId: comment.commentId,
+            parentCommentId: comment.parentCommentId || '',
+          })
+          const replied = await this.leadRepository.markAuthorReplied({
+            userId,
+            platform: comment.platform,
+            accountId: comment.accountId,
+            postId: comment.postId,
+            parentCommentId: comment.parentCommentId || '',
+            repliedToUserName: authorReply.repliedToUserName,
+          })
+          if (replied?.id) {
+            await this.leadActivityLogRepository.append({
+              userId,
+              leadId: replied.id,
+              action: 'stage_changed',
+              operatorId,
+              toValue: 'replied',
+              note: `Author replied in comment ${comment.commentId}`,
+            })
+          }
+          continue
+        }
+
         const result = await this.leadRepository.upsertFromComment({
           userId,
           platform: comment.platform,
           accountId: comment.accountId,
           postId: comment.postId,
+          postTitle: post.title || '',
+          postUrl: post.postUrl || '',
+          postCover: post.cover || '',
           commentId: comment.commentId,
           parentCommentId: comment.parentCommentId || '',
           userName: comment.userName || '',
@@ -84,5 +118,15 @@ export class LeadMaterializationService {
     }
 
     return { totalScanned, materialized: createdOrUpdated }
+  }
+
+  private parseAuthorReply(content: string): { isAuthorReply: boolean; repliedToUserName?: string } {
+    const trimmed = content.trim()
+    if (!trimmed.startsWith('作者')) return { isAuthorReply: false }
+    const match = trimmed.match(/^作者\s+回复\s+(.+?)\s*[:：]/)
+    return {
+      isAuthorReply: true,
+      repliedToUserName: match?.[1]?.trim(),
+    }
   }
 }
