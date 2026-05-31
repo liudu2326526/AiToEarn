@@ -4,6 +4,8 @@ import { LeadActivityLogRepository, LeadRepository, ScriptTemplateRepository } f
 import { AppException, CreditsConsumptionSource, ResponseCode, UserType } from '@yikart/common'
 import { SensitiveWordService } from '../../sensitive-word/sensitive-word.service'
 
+type ReplyStyle = 'friendly' | 'professional' | 'promotion' | 'restrained'
+
 @Injectable()
 export class ReplySuggestionService {
   constructor(
@@ -18,14 +20,15 @@ export class ReplySuggestionService {
     const lead = await this.leadRepository.getByIdAndUser(id, userId)
     if (!lead) throw new AppException(ResponseCode.LeadNotFound)
 
+    const replyStyle = this.resolveReplyStyle(lead as any)
     const scripts = await this.scriptTemplateRepository.listByScene(
       userId,
-      'comment_praise',
+      replyStyle,
       '',
     )
     const scriptInstruction = scripts[0]?.content
-      ? `优先参考这条话术模板，但不要照抄: ${scripts[0].content}`
-      : '没有可用话术模板时，生成一条自然、简短、无联系方式的公开评论回复。'
+      ? `按这条回复风格提示词生成，但不要照抄为固定回复: ${scripts[0].content}`
+      : `没有可用风格提示词时，按 ${replyStyle} 风格生成一条自然、简短、无联系方式的公开评论回复。`
 
     const aiResult = await this.aiService.chatCompletion({
       userId,
@@ -62,5 +65,18 @@ export class ReplySuggestionService {
     })
 
     return updated
+  }
+
+  private resolveReplyStyle(lead: { replyStyle?: string; sourceContent?: string }): ReplyStyle {
+    const explicit = String(lead.replyStyle || '')
+    if (['friendly', 'professional', 'promotion', 'restrained'].includes(explicit)) {
+      return explicit as ReplyStyle
+    }
+
+    const content = String(lead.sourceContent || '')
+    if (/差|贵|不行|不能要|吐槽|无语|垃圾|骗人|踩雷/.test(content)) return 'restrained'
+    if (/链接|求链|怎么买|哪里买|下单|同款|橱窗|购买/.test(content)) return 'promotion'
+    if (/尺码|大小|身高|体重|适合|面料|材质|版型|长度|颜色/.test(content)) return 'professional'
+    return 'friendly'
   }
 }

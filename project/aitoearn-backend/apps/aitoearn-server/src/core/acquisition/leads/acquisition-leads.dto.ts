@@ -4,6 +4,7 @@ import { z } from 'zod'
 export const LeadStageSchema = z.enum(['new_comment', 'replied', 'messaged', 'wechat_guided', 'wechat_added', 'lost'])
 export const LeadStatusSchema = z.enum(['pending', 'in_progress', 'converted', 'lost', 'invalid'])
 export const LeadPlatformSchema = z.enum(['xhs', 'douyin', 'kwai'])
+export const LeadReplyStyleSchema = z.enum(['auto', 'friendly', 'professional', 'promotion', 'restrained'])
 
 export const LeadListQuerySchema = z.object({
   platform: LeadPlatformSchema.optional(),
@@ -26,6 +27,38 @@ export const LeadStatsQuerySchema = LeadListQuerySchema.omit({
 
 export class LeadStatsQueryDto extends createZodDto(LeadStatsQuerySchema, 'LeadStatsQueryDto') {}
 
+export const AutoSelectLeadReplyStyleSchema = LeadStatsQuerySchema.extend({
+  onlyAuto: z.boolean().default(true),
+  limit: z.coerce.number().int().min(1).max(100).default(100),
+})
+
+export class AutoSelectLeadReplyStyleDto extends createZodDto(AutoSelectLeadReplyStyleSchema, 'AutoSelectLeadReplyStyleDto') {}
+
+export const AutoReplyLeadSchema = z.object({
+  regenerate: z.boolean().default(false),
+  dryRun: z.boolean().default(false),
+  requireSuggestionReview: z.boolean().default(false),
+})
+
+export class AutoReplyLeadDto extends createZodDto(AutoReplyLeadSchema, 'AutoReplyLeadDto') {}
+
+export const BatchAutoReplyLeadsSchema = LeadStatsQuerySchema.extend({
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  onlyPending: z.boolean().default(true),
+  dryRun: z.boolean().default(false),
+})
+
+export class BatchAutoReplyLeadsDto extends createZodDto(BatchAutoReplyLeadsSchema, 'BatchAutoReplyLeadsDto') {}
+
+export const LeadReplyTaskListQuerySchema = z.object({
+  status: z.enum(['pending', 'queued', 'running', 'success', 'failed', 'blocked', 'human_required', 'cancelled']).optional(),
+  leadId: z.string().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+})
+
+export class LeadReplyTaskListQueryDto extends createZodDto(LeadReplyTaskListQuerySchema, 'LeadReplyTaskListQueryDto') {}
+
 export const MaterializeLeadsSchema = z.object({
   monitoredPostId: z.string().optional(),
   platform: LeadPlatformSchema.optional(),
@@ -47,6 +80,16 @@ export class UpdateLeadAssigneeDto extends createZodDto(
 export class BatchAssignLeadsDto extends createZodDto(
   z.object({ leadIds: z.array(z.string()).min(1).max(100), assignee: z.string().default('') }),
   'BatchAssignLeadsDto',
+) {}
+
+export class UpdateLeadReplyStyleDto extends createZodDto(
+  z.object({ replyStyle: LeadReplyStyleSchema.default('auto') }),
+  'UpdateLeadReplyStyleDto',
+) {}
+
+export class BatchUpdateLeadReplyStyleDto extends createZodDto(
+  z.object({ leadIds: z.array(z.string()).min(1).max(100), replyStyle: LeadReplyStyleSchema.default('auto') }),
+  'BatchUpdateLeadReplyStyleDto',
 ) {}
 
 export class UpdateLeadStageDto extends createZodDto(

@@ -62,11 +62,12 @@ function NavItem({ item, currentRoute, collapsed, level = 0 }: NavItemProps) {
   const contentNode = (
     <div
       className={cn(
-        'relative flex w-full min-w-0 items-center text-sm font-medium transition-[background-color,color,box-shadow] duration-200',
-        level === 0 ? 'rounded-xl' : 'rounded-lg',
+        'relative flex w-full min-w-0 items-center text-sm font-medium transition-[background-color,border-color,color,box-shadow] duration-200',
+        'border border-transparent',
+        level === 0 ? 'rounded-lg' : 'rounded-md',
         showStrongActive
-          ? 'bg-brand-cyan/10 text-brand-cyan ring-1 ring-inset ring-brand-cyan/25'
-          : 'text-muted-foreground hover:bg-brand-cyan/10 hover:text-brand-cyan',
+          ? 'border-sky-100/80 bg-white/75 text-sky-600 shadow-[0_8px_22px_rgba(15,23,42,0.06)]'
+          : 'text-slate-500 hover:border-white/80 hover:bg-white/60 hover:text-sky-600',
         showBranchActive && 'text-brand-cyan',
         collapsed
           ? 'justify-center px-2 py-2.5'
@@ -75,8 +76,11 @@ function NavItem({ item, currentRoute, collapsed, level = 0 }: NavItemProps) {
             : 'gap-2.5 px-3 py-2 text-[13px]',
       )}
     >
+      {showStrongActive && (
+        <span className="absolute left-1.5 top-1/2 h-4 w-1 -translate-y-1/2 rounded-full bg-sky-400/90" />
+      )}
       {showBranchActive && (
-        <span className="absolute left-1.5 top-1/2 h-5 w-1 -translate-y-1/2 rounded-full bg-brand-cyan" />
+        <span className="absolute left-1.5 top-1/2 h-4 w-1 -translate-y-1/2 rounded-full bg-sky-400/80" />
       )}
       <span
         className={cn(
@@ -218,11 +222,11 @@ export function NavSection({ items, currentRoute, collapsed }: NavSectionProps) 
               <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
                 <PopoverTrigger asChild>
                   <button
-                    className={cn(
-                      'relative flex items-center justify-center rounded-lg text-sm font-medium transition-all w-full',
-                      'text-muted-foreground hover:bg-brand-cyan/10 hover:text-brand-cyan',
-                      'px-2 py-2.5',
-                    )}
+                  className={cn(
+                    'relative flex items-center justify-center rounded-lg border border-transparent text-sm font-medium transition-all w-full',
+                    'text-slate-500 hover:border-white/80 hover:bg-white/60 hover:text-sky-600',
+                    'px-2 py-2.5',
+                  )}
                     data-testid="sidebar-more-btn"
                     onMouseEnter={handleMouseEnter}
                     onMouseLeave={handleMouseLeave}
@@ -264,9 +268,9 @@ export function NavSection({ items, currentRoute, collapsed }: NavSectionProps) 
                   onClick={() => setGroupOpen(s => !s)}
                   data-testid="sidebar-more-btn"
                   className={cn(
-                    'relative flex items-center rounded-lg text-sm font-medium transition-all w-full',
-                    'text-muted-foreground hover:bg-brand-cyan/10 hover:text-brand-cyan',
-                    groupOpen && 'bg-brand-cyan/10 text-brand-cyan',
+                    'relative flex items-center rounded-lg border border-transparent text-sm font-medium transition-all w-full',
+                    'text-slate-500 hover:border-white/80 hover:bg-white/60 hover:text-sky-600',
+                    groupOpen && 'border-white/80 bg-white/60 text-sky-600 shadow-[0_8px_22px_rgba(15,23,42,0.04)]',
                     'gap-3 px-3 py-2.5',
                   )}
                 >

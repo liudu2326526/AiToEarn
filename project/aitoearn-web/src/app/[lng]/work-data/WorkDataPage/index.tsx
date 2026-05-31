@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Card, Row, Col, Statistic, Tag, Space } from 'antd'
+import { Card, Row, Col, Statistic, Tag, Space, Typography } from 'antd'
 import {
   CheckCircleOutlined,
   CloudSyncOutlined,
@@ -22,30 +22,42 @@ import xhsLogo from '@/assets/svgs/plat/xhs.svg'
 import douyinLogo from '@/assets/svgs/plat/douyin.svg'
 import kwaiLogo from '@/assets/svgs/plat/ks.svg'
 
+const { Text, Title } = Typography
+
 const pageStyle: React.CSSProperties = {
   minHeight: '100%',
   padding: '28px',
-  background: '#f4f9ff',
+  background: 'linear-gradient(180deg, #f6f8fb 0, #ffffff 360px)',
 }
 
 const panelStyle: React.CSSProperties = {
-  border: '1px solid #dbeafe',
+  border: '1px solid #e8edf5',
   borderRadius: 8,
-  boxShadow: '0 8px 24px rgba(22, 119, 255, 0.06)',
+  background: 'rgba(255, 255, 255, 0.82)',
+  boxShadow: '0 12px 32px rgba(15, 23, 42, 0.05)',
 }
 
 const statCardStyle: React.CSSProperties = {
   height: '100%',
-  border: '1px solid #dbeafe',
+  border: '1px solid #e8edf5',
   borderRadius: 8,
-  background: '#ffffff',
+  background: 'rgba(255, 255, 255, 0.82)',
+  boxShadow: '0 10px 26px rgba(15, 23, 42, 0.04)',
 }
 
 const capabilityCardStyle: React.CSSProperties = {
   height: '100%',
-  border: '1px solid #dbeafe',
+  border: '1px solid #e8edf5',
   borderRadius: 8,
-  background: '#ffffff',
+  background: 'rgba(255, 255, 255, 0.74)',
+}
+
+const heroStyle: React.CSSProperties = {
+  marginBottom: 16,
+  border: '1px solid #e8edf5',
+  borderRadius: 8,
+  background: 'rgba(255, 255, 255, 0.82)',
+  boxShadow: '0 12px 32px rgba(15, 23, 42, 0.05)',
 }
 
 const WorkDataPage: React.FC = () => {
@@ -185,8 +197,8 @@ const WorkDataPage: React.FC = () => {
           width: 44,
           height: 44,
           borderRadius: 10,
-          background: '#f5faff',
-          border: '1px solid #dbeafe',
+          background: 'rgba(248, 250, 252, 0.82)',
+          border: '1px solid #e8edf5',
         }}
       >
         <img
@@ -200,6 +212,18 @@ const WorkDataPage: React.FC = () => {
 
   return (
     <div style={pageStyle}>
+      <Card style={heroStyle} styles={{ body: { padding: 22 } }}>
+        <Space direction="vertical" size={4}>
+          <Text type="secondary">{t('workData.heroEyebrow')}</Text>
+          <Title level={2} style={{ margin: 0, lineHeight: 1.2 }}>
+            {t('workData.title')}
+          </Title>
+          <Text type="secondary" style={{ maxWidth: 760, lineHeight: 1.7 }}>
+            {t('workData.description')}
+          </Text>
+        </Space>
+      </Card>
+
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         {statItems.map(item => (
           <Col key={item.key} xs={24} sm={12} lg={6}>

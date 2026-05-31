@@ -241,16 +241,25 @@ export const XHS_CAPTURE_NOTE_STATE_EXPRESSION = `
     || readDomActionCount(['分享'], ['.share-wrapper .count', '.share-wrapper', '[class*="share"] .count']);
 
   const commentNodes = Array.from(document.querySelectorAll('.comment-item'));
+  const readCommentId = el => {
+    const dataId = el.getAttribute('data-comment-id');
+    if (dataId) return dataId;
+    const domId = el.getAttribute('id') || '';
+    if (domId.startsWith('comment-')) return domId.slice('comment-'.length);
+    return '';
+  };
   const comments = commentNodes.map((el, index) => {
     const parsed = parseCommentText(el);
     const meta = parseMeta(parsed.metaText);
     const isSub = String(el.className || '').includes('comment-item-sub');
     const parent = isSub ? el.closest('.parent-comment')?.querySelector('.comment-item:not(.comment-item-sub)') : null;
     const parentIndex = parent ? commentNodes.indexOf(parent) : -1;
+    const commentId = readCommentId(el) || 'dom:' + noteId + ':' + index;
+    const parentCommentId = parent ? readCommentId(parent) || (parentIndex >= 0 ? 'dom:' + noteId + ':' + parentIndex : '') : '';
 
     return {
-      id: el.getAttribute('data-comment-id') || 'dom:' + noteId + ':' + index,
-      parentCommentId: parentIndex >= 0 ? 'dom:' + noteId + ':' + parentIndex : '',
+      id: commentId,
+      parentCommentId,
       userName: parsed.userName,
       userAvatar: el.querySelector('img')?.getAttribute('src') || '',
       content: parsed.content,

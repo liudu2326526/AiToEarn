@@ -18,9 +18,11 @@ const PostMonitorToolbar: React.FC<PostMonitorToolbarProps> = ({ onSearch, onAdd
       display: 'flex',
       justifyContent: 'space-between',
       gap: 16,
-      padding: 16,
-      borderBottom: '1px solid #dbeafe',
-      background: '#f5faff',
+      padding: 14,
+      borderBottom: '1px solid #e8edf5',
+      background: 'rgba(248, 250, 252, 0.58)',
+      backdropFilter: 'blur(12px)',
+      flexWrap: 'wrap',
     }}>
       <Space wrap size={12}>
         <Select
@@ -59,11 +61,13 @@ const PostMonitorToolbar: React.FC<PostMonitorToolbarProps> = ({ onSearch, onAdd
         icon={<PlusOutlined />}
         onClick={onAdd}
         style={{
-          height: 36,
-          borderRadius: 6,
-          borderColor: '#1677ff',
-          background: '#1677ff',
-          boxShadow: '0 8px 18px rgba(22, 119, 255, 0.18)',
+          height: 40,
+          borderRadius: 999,
+          borderColor: '#9bd7ff',
+          background: 'rgba(239, 248, 255, 0.92)',
+          color: '#1677ff',
+          fontWeight: 600,
+          boxShadow: '0 8px 18px rgba(22, 119, 255, 0.12)',
         }}
       >
         {t('workData.addBtn')}

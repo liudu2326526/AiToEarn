@@ -53,11 +53,12 @@ describe('ReplySuggestionService', () => {
     }))
   })
 
-  it('includes the current user script template in the AI prompt', async () => {
+  it('uses the lead reply style prompt when the user selected one', async () => {
     leadRepository.getByIdAndUser.mockResolvedValue({
       id: 'lead-1',
       platform: 'xhs',
       sourceContent: '有链接吗',
+      replyStyle: 'professional',
     })
     scriptTemplateRepository.listByScene.mockResolvedValue([
       { id: 'script-1', content: '先感谢，再提醒用户看主页橱窗。' },
@@ -68,7 +69,7 @@ describe('ReplySuggestionService', () => {
 
     await service.generate('user-1', 'lead-1', 'operator-1')
 
-    expect(scriptTemplateRepository.listByScene).toHaveBeenCalledWith('user-1', 'comment_praise', '')
+    expect(scriptTemplateRepository.listByScene).toHaveBeenCalledWith('user-1', 'professional', '')
     expect(aiService.chatCompletion).toHaveBeenCalledWith(expect.objectContaining({
       messages: expect.arrayContaining([
         expect.objectContaining({
@@ -77,5 +78,21 @@ describe('ReplySuggestionService', () => {
         }),
       ]),
     }))
+  })
+
+  it('auto-selects a promotional style prompt for link-seeking comments', async () => {
+    leadRepository.getByIdAndUser.mockResolvedValue({
+      id: 'lead-1',
+      platform: 'xhs',
+      sourceContent: '衣服求链',
+      replyStyle: 'auto',
+    })
+    aiService.chatCompletion.mockResolvedValue({ content: '可以先看主页同款入口哦', model: 'gpt-5.5' })
+    sensitiveWordService.check.mockReturnValue({ passed: true, hits: [] })
+    leadRepository.updateById.mockResolvedValue({ id: 'lead-1', suggestedReply: { status: 'generated' } })
+
+    await service.generate('user-1', 'lead-1', 'operator-1')
+
+    expect(scriptTemplateRepository.listByScene).toHaveBeenCalledWith('user-1', 'promotion', '')
   })
 })

@@ -1,21 +1,27 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { Card, Input, Modal, Space, Typography, message } from 'antd'
+import { Card, Modal, Select, Space, Typography, message } from 'antd'
 import type { AcquisitionPlatform } from '@/api/acquisition'
-import type { LeadActivityItem, LeadItem, LeadStage, LeadStats, LeadStatus } from '@/api/leads'
+import type { LeadActivityItem, LeadItem, LeadReplyStyle, LeadReplyTaskItem, LeadStage, LeadStats, LeadStatus } from '@/api/leads'
 import {
   addLeadNote,
-  batchAssignLeads,
+  autoSelectLeadReplyStyle,
+  autoReplyLead,
+  batchAutoReplyLeads,
+  batchUpdateLeadReplyStyle,
+  cancelLeadReplyTask,
   generateLeadReplySuggestion,
   getLeadDetail,
   getLeadStats,
   getPrivateMessageCapability,
+  listLeadReplyTasks,
   listLeadTimeline,
   listLeads,
   materializeLeads,
   recordLeadReplyResult,
-  updateLeadAssignee,
+  retryLeadReplyTask,
+  updateLeadReplyStyle,
   updateLeadStage,
 } from '@/api/leads'
 import type { MonitoredPostItem } from '@/api/workData'
@@ -40,7 +46,7 @@ const emptyStats: LeadStats = {
 
 const pageStyle: React.CSSProperties = {
   padding: '24px 28px 32px',
-  background: '#f6f8fb',
+  background: 'linear-gradient(180deg, #f6f8fb 0, #ffffff 360px)',
   minHeight: '100vh',
 }
 
@@ -67,6 +73,8 @@ const statsGridStyle: React.CSSProperties = {
 const statCardStyle: React.CSSProperties = {
   borderRadius: 8,
   borderColor: '#e8edf5',
+  background: 'rgba(255, 255, 255, 0.82)',
+  boxShadow: '0 10px 26px rgba(15, 23, 42, 0.04)',
 }
 
 const statValueStyle: React.CSSProperties = {
@@ -82,6 +90,9 @@ const LeadsPage: React.FC = () => {
   const { t } = useTransClient('route')
   const [loading, setLoading] = useState(false)
   const [materializing, setMaterializing] = useState(false)
+  const [autoSelecting, setAutoSelecting] = useState(false)
+  const [autoReplying, setAutoReplying] = useState(false)
+  const [batchAutoReplying, setBatchAutoReplying] = useState(false)
   const [leads, setLeads] = useState<LeadItem[]>([])
   const [stats, setStats] = useState<LeadStats>(emptyStats)
   const [total, setTotal] = useState(0)
@@ -94,13 +105,14 @@ const LeadsPage: React.FC = () => {
   const [postOptions, setPostOptions] = useState<LeadPostOption[]>([])
   const [keyword, setKeyword] = useState('')
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
-  const [batchAssigneeOpen, setBatchAssigneeOpen] = useState(false)
-  const [batchAssignee, setBatchAssignee] = useState('')
-  const [batchAssigning, setBatchAssigning] = useState(false)
+  const [batchReplyStyleOpen, setBatchReplyStyleOpen] = useState(false)
+  const [batchReplyStyle, setBatchReplyStyle] = useState<LeadReplyStyle>('auto')
+  const [batchReplyStyleSaving, setBatchReplyStyleSaving] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
   const [activeLead, setActiveLead] = useState<LeadItem | null>(null)
   const [timeline, setTimeline] = useState<LeadActivityItem[]>([])
+  const [replyTasks, setReplyTasks] = useState<LeadReplyTaskItem[]>([])
   const [capability, setCapability] = useState<Array<{ platform: AcquisitionPlatform; status: string; reason: string }>>([])
 
   const labels = useMemo<LeadLabels>(() => ({
@@ -118,6 +130,13 @@ const LeadsPage: React.FC = () => {
       converted: t('leads.status.converted'),
       lost: t('leads.status.lost'),
       invalid: t('leads.status.invalid'),
+    },
+    replyStyle: {
+      auto: t('leads.replyStyle.auto'),
+      friendly: t('operationStrategy.tone.friendly'),
+      professional: t('operationStrategy.tone.professional'),
+      promotion: t('operationStrategy.tone.promotion'),
+      restrained: t('operationStrategy.tone.restrained'),
     },
     platform: {
       xhs: t('acquisition.platform.xhs'),
@@ -145,37 +164,46 @@ const LeadsPage: React.FC = () => {
       searchPlaceholder: t('leads.filter.searchPlaceholder'),
       refresh: t('leads.actions.refresh'),
       materialize: t('leads.actions.materialize'),
-      batchAssign: t('leads.actions.batchAssign'),
+      autoSelectReplyStyle: t('leads.actions.autoSelectReplyStyle'),
+      batchAutoReply: t('leads.actions.batchAutoReply'),
+      batchAssign: t('leads.actions.batchSetReplyStyle'),
       platformAccount: t('leads.columns.platformAccount'),
       sourcePost: t('leads.columns.sourcePost'),
       sourceUser: t('leads.columns.sourceUser'),
       commentContent: t('leads.columns.commentContent'),
       stageStatus: t('leads.columns.stageStatus'),
-      assignee: t('leads.columns.assignee'),
+      replyStyle: t('leads.columns.replyStyle'),
       lastFollowUp: t('leads.columns.lastFollowUp'),
       actions: t('leads.columns.actions'),
       unknownUser: t('leads.unknownUser'),
-      unassigned: t('leads.unassigned'),
       detail: t('leads.actions.detail'),
-      claim: t('leads.actions.claim'),
-      claimSuccess: t('leads.claimSuccess'),
+      replyStyleUpdated: t('leads.replyStyle.updated'),
       leadDetail: t('leads.detail.title'),
       sourceComment: t('leads.detail.sourceComment'),
       aiSuggestion: t('leads.detail.aiSuggestion'),
       generate: t('leads.actions.generate'),
+      generateAndReply: t('leads.actions.generateAndReply'),
       riskHits: t('leads.detail.riskHits'),
       noSuggestion: t('leads.detail.noSuggestion'),
+      replyTasks: t('leads.detail.replyTasks'),
+      noReplyTasks: t('leads.detail.noReplyTasks'),
+      retryReplyTask: t('leads.actions.retryReplyTask'),
+      cancelReplyTask: t('leads.actions.cancelReplyTask'),
+      replyTaskScreenshot: t('leads.replyTask.screenshot'),
       followUpActions: t('leads.detail.followUpActions'),
-      assigneeId: t('leads.detail.assigneeId'),
-      assign: t('leads.actions.assign'),
+      replyStyleField: t('leads.detail.replyStyle'),
       recordReplied: t('leads.actions.recordReplied'),
       addNote: t('leads.detail.addNote'),
       timeline: t('leads.detail.timeline'),
       noTimeline: t('leads.detail.noTimeline'),
-      batchAssignTitle: t('leads.batchAssign.title'),
-      batchAssigneePlaceholder: t('leads.batchAssign.placeholder'),
-      batchAssignFailed: t('leads.batchAssign.failed'),
-      batchAssignSuccess: t('leads.batchAssign.success'),
+      batchAssignTitle: t('leads.batchReplyStyle.title'),
+      batchAssignFailed: t('leads.batchReplyStyle.failed'),
+      batchAssignSuccess: t('leads.batchReplyStyle.success'),
+      autoSelectSuccess: t('leads.autoSelectReplyStyle.success'),
+      autoSelectFailed: t('leads.autoSelectReplyStyle.failed'),
+      autoReplyQueued: t('leads.autoReply.queued'),
+      autoReplyFailed: t('leads.autoReply.failed'),
+      batchAutoReplyFailed: t('leads.autoReply.batchFailed'),
       materializeSuccess: t('leads.materialize.success'),
       materializeFailed: t('leads.materialize.failed'),
       loadFailed: t('leads.loadFailed'),
@@ -186,11 +214,28 @@ const LeadsPage: React.FC = () => {
       'activity.claimed': t('leads.activity.claimed'),
       'activity.transferred': t('leads.activity.transferred'),
       'activity.batch_assigned': t('leads.activity.batch_assigned'),
+      'activity.reply_style_changed': t('leads.activity.reply_style_changed'),
+      'activity.batch_reply_style_changed': t('leads.activity.batch_reply_style_changed'),
+      'activity.auto_reply_style_selected': t('leads.activity.auto_reply_style_selected'),
       'activity.stage_changed': t('leads.activity.stage_changed'),
       'activity.note_added': t('leads.activity.note_added'),
       'activity.reply_suggested': t('leads.activity.reply_suggested'),
       'activity.reply_executed': t('leads.activity.reply_executed'),
       'activity.reply_failed': t('leads.activity.reply_failed'),
+      'activity.reply_task_created': t('leads.activity.reply_task_created'),
+      'activity.reply_task_queued': t('leads.activity.reply_task_queued'),
+      'activity.reply_task_running': t('leads.activity.reply_task_running'),
+      'activity.reply_task_human_required': t('leads.activity.reply_task_human_required'),
+      'activity.reply_task_cancelled': t('leads.activity.reply_task_cancelled'),
+      'activity.reply_task_retry_queued': t('leads.activity.reply_task_retry_queued'),
+      'replyTask.status.pending': t('leads.replyTask.status.pending'),
+      'replyTask.status.queued': t('leads.replyTask.status.queued'),
+      'replyTask.status.running': t('leads.replyTask.status.running'),
+      'replyTask.status.success': t('leads.replyTask.status.success'),
+      'replyTask.status.failed': t('leads.replyTask.status.failed'),
+      'replyTask.status.blocked': t('leads.replyTask.status.blocked'),
+      'replyTask.status.human_required': t('leads.replyTask.status.human_required'),
+      'replyTask.status.cancelled': t('leads.replyTask.status.cancelled'),
     },
   }), [t])
 
@@ -269,16 +314,40 @@ const LeadsPage: React.FC = () => {
     setDetailOpen(true)
     setDetailLoading(true)
     try {
-      const [detail, logs] = await Promise.all([
+      const [detail, logs, tasks] = await Promise.all([
         getLeadDetail(lead.id),
         listLeadTimeline(lead.id),
+        listLeadReplyTasks(lead.id),
       ])
       setActiveLead(detail)
       setTimeline(logs)
+      setReplyTasks(tasks.list)
     } catch (error) {
       message.error(error instanceof Error ? error.message : labels.ui.detailLoadFailed)
     } finally {
       setDetailLoading(false)
+    }
+  }
+
+  const runBatchAutoReply = async () => {
+    setBatchAutoReplying(true)
+    try {
+      const result = await batchAutoReplyLeads({
+        ...buildFilterParams(),
+        onlyPending: true,
+        limit: 20,
+      })
+      message.success(t('leads.autoReply.batchQueued', {
+        matched: result.matched,
+        queued: result.queued,
+        blocked: result.blocked,
+        failed: result.failed,
+      }))
+      await fetchLeads(1, pageSize)
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : labels.ui.batchAutoReplyFailed)
+    } finally {
+      setBatchAutoReplying(false)
     }
   }
 
@@ -304,23 +373,44 @@ const LeadsPage: React.FC = () => {
     }
   }
 
+  const runAutoSelectReplyStyle = async () => {
+    setAutoSelecting(true)
+    try {
+      const result = await autoSelectLeadReplyStyle({
+        ...buildFilterParams(),
+        onlyAuto: true,
+        limit: 100,
+      })
+      message.success(t('leads.autoSelectReplyStyle.success', {
+        total: result.total,
+        updated: result.updated,
+        skipped: result.skipped,
+      }))
+      await fetchLeads(1, pageSize)
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : labels.ui.autoSelectFailed)
+    } finally {
+      setAutoSelecting(false)
+    }
+  }
+
   const openBatchAssign = () => {
-    setBatchAssignee('')
-    setBatchAssigneeOpen(true)
+    setBatchReplyStyle('auto')
+    setBatchReplyStyleOpen(true)
   }
 
   const submitBatchAssign = async () => {
-    setBatchAssigning(true)
+    setBatchReplyStyleSaving(true)
     try {
-      const result = await batchAssignLeads(selectedRowKeys.map(String), batchAssignee.trim())
-      message.success(t('leads.batchAssign.success', { count: result.updated }))
+      const result = await batchUpdateLeadReplyStyle(selectedRowKeys.map(String), batchReplyStyle)
+      message.success(t('leads.batchReplyStyle.success', { count: result.updated }))
       setSelectedRowKeys([])
-      setBatchAssigneeOpen(false)
+      setBatchReplyStyleOpen(false)
       await fetchLeads()
     } catch (error) {
       message.error(error instanceof Error ? error.message : labels.ui.batchAssignFailed)
     } finally {
-      setBatchAssigning(false)
+      setBatchReplyStyleSaving(false)
     }
   }
 
@@ -360,6 +450,8 @@ const LeadsPage: React.FC = () => {
           postId={postId}
           postOptions={postOptions}
           materializing={materializing}
+          autoSelecting={autoSelecting}
+          autoReplying={batchAutoReplying}
           hasSelection={selectedRowKeys.length > 0}
           onPlatformChange={setPlatform}
           onStageChange={setStage}
@@ -368,6 +460,8 @@ const LeadsPage: React.FC = () => {
           onSearch={value => { setKeyword(value); fetchLeads(1, pageSize, { keyword: value || undefined }) }}
           onRefresh={() => fetchLeads()}
           onMaterialize={runMaterialize}
+          onAutoSelectReplyStyle={runAutoSelectReplyStyle}
+          onBatchAutoReply={runBatchAutoReply}
           onBatchAssign={openBatchAssign}
         />
 
@@ -394,10 +488,34 @@ const LeadsPage: React.FC = () => {
         loading={detailLoading}
         activeLead={activeLead}
         timeline={timeline}
+        replyTasks={replyTasks}
+        autoReplying={autoReplying}
         onClose={() => setDetailOpen(false)}
         onGenerateSuggestion={async () => {
           if (!activeLead) return
           await generateLeadReplySuggestion(activeLead.id)
+          await refreshDetail()
+        }}
+        onAutoReply={async () => {
+          if (!activeLead) return
+          setAutoReplying(true)
+          try {
+            await autoReplyLead(activeLead.id, { regenerate: false })
+            message.success(labels.ui.autoReplyQueued)
+            await refreshDetail()
+          } catch (error) {
+            message.error(error instanceof Error ? error.message : labels.ui.autoReplyFailed)
+          } finally {
+            setAutoReplying(false)
+          }
+        }}
+        onCancelReplyTask={async taskId => {
+          await cancelLeadReplyTask(taskId)
+          await refreshDetail()
+        }}
+        onRetryReplyTask={async taskId => {
+          await retryLeadReplyTask(taskId)
+          message.success(labels.ui.autoReplyQueued)
           await refreshDetail()
         }}
         onUpdateStage={async stage => {
@@ -405,9 +523,9 @@ const LeadsPage: React.FC = () => {
           await updateLeadStage(activeLead.id, stage)
           await refreshDetail()
         }}
-        onUpdateAssignee={async assignee => {
+        onUpdateReplyStyle={async replyStyle => {
           if (!activeLead) return
-          await updateLeadAssignee(activeLead.id, assignee)
+          await updateLeadReplyStyle(activeLead.id, replyStyle)
           await refreshDetail()
         }}
         onRecordReplied={async () => {
@@ -428,16 +546,16 @@ const LeadsPage: React.FC = () => {
 
       <Modal
         title={labels.ui.batchAssignTitle}
-        open={batchAssigneeOpen}
-        confirmLoading={batchAssigning}
-        onCancel={() => setBatchAssigneeOpen(false)}
+        open={batchReplyStyleOpen}
+        confirmLoading={batchReplyStyleSaving}
+        onCancel={() => setBatchReplyStyleOpen(false)}
         onOk={submitBatchAssign}
       >
-        <Input
-          value={batchAssignee}
-          placeholder={labels.ui.batchAssigneePlaceholder}
-          onChange={event => setBatchAssignee(event.target.value)}
-          onPressEnter={submitBatchAssign}
+        <Select
+          value={batchReplyStyle}
+          style={{ width: '100%' }}
+          onChange={value => setBatchReplyStyle(value)}
+          options={Object.entries(labels.replyStyle).map(([value, label]) => ({ value, label }))}
         />
       </Modal>
     </div>

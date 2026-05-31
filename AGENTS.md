@@ -86,6 +86,12 @@ Avoid root package commands for normal verification. For local full-stack startu
 - **API client**: Functions in `src/api/` using a custom `FetchService` wrapper (`src/utils/request.ts`). Pattern: `http.get<T>(path)` / `http.post<T>(path, data)`. Base URL from `NEXT_PUBLIC_API_URL`.
 - **i18n**: `i18next` with locale files in `src/app/i18n/locales/{lang}/`. Type generation via `i18next-resources-for-ts`.
 - **UI**: Ant Design + Radix UI + Tailwind CSS + Lucide icons.
+- **AitoBee visual style**: Use a lightweight productivity-console look: light backgrounds, white or near-white translucent panels, subtle blue-gray borders, restrained shadows, compact spacing, and content-first hierarchy.
+- **Surface treatment**: Prefer `bg-background/95`, `bg-white/90`, `rgba(255,255,255,0.9+)`, `border-border/70`, or `#e8edf5` style borders. Use 8-12px radius for panels/cards/modals and avoid heavy nested cards.
+- **Controls**: Buttons and compact selectors should generally use translucent pill styling, light borders, small line icons, and soft shadows. Primary actions may use soft blue or solid blue only when they are the main decision action; destructive actions should be red but still visually restrained.
+- **Tabs and navigation**: Prefer Ant Design line tabs with a blue underline for first-level navigation. Avoid adding secondary segmented controls when the item can be promoted to a first-level tab.
+- **Switches and status**: Keep switch controls visually simple and translucent. Do not put long status text inside the switch; show status with nearby text or a small tag while the switch remains the binary control.
+- **Content management pages**: Match the existing content-management/draft-detail style: left navigation plus a large work surface, translucent generation/tool panels, pill parameter chips, image-first draft cards, and focused modal detail views with a blurred overlay.
 - **Path alias**: `@/*` maps to `./src/*`.
 - **App Router query params**: If a page only branches by query params, prefer a client component with `useSearchParams()` instead of making a server page dynamic by accident.
 

@@ -5,6 +5,7 @@ import { EngagementTaskRepository } from './engagement-task.repository'
 import { HookTemplateRepository } from './hook-template.repository'
 import { InteractionRecordRepository } from './interaction-record.repository'
 import { LeadActivityLogRepository } from './lead-activity-log.repository'
+import { LeadReplyTaskRepository } from './lead-reply-task.repository'
 import { LeadRepository } from './lead.repository'
 import { OAuth2CredentialRepository } from './oauth2-credential.repository'
 import { PostMediaContainerRepository } from './post-media-container.repository'
@@ -26,6 +27,7 @@ export * from './engagement-task.repository'
 export * from './hook-template.repository'
 export * from './interaction-record.repository'
 export * from './lead-activity-log.repository'
+export * from './lead-reply-task.repository'
 export * from './lead.repository'
 export * from './oauth2-credential.repository'
 export * from './post-media-container.repository'
@@ -54,6 +56,7 @@ export const repositories = [
   HookTemplateRepository,
   LeadRepository,
   LeadActivityLogRepository,
+  LeadReplyTaskRepository,
   PostSnapshotRepository,
   ScriptTemplateRepository,
   AcquisitionContentRepository,

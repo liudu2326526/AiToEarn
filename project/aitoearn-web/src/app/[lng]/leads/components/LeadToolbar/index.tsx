@@ -1,6 +1,6 @@
 import type React from 'react'
 import { Button, Card, Input, Select, Space } from 'antd'
-import { ReloadOutlined, UserSwitchOutlined } from '@ant-design/icons'
+import { ReloadOutlined, ThunderboltOutlined, UserSwitchOutlined } from '@ant-design/icons'
 import type { AcquisitionPlatform } from '@/api/acquisition'
 import type { LeadStage, LeadStatus } from '@/api/leads'
 import type { LeadLabels, LeadPostOption } from '../types'
@@ -13,6 +13,8 @@ interface LeadToolbarProps {
   postId?: string
   postOptions: LeadPostOption[]
   materializing: boolean
+  autoSelecting: boolean
+  autoReplying: boolean
   hasSelection: boolean
   onPlatformChange: (value?: AcquisitionPlatform) => void
   onStageChange: (value?: LeadStage) => void
@@ -21,6 +23,8 @@ interface LeadToolbarProps {
   onSearch: (value: string) => void
   onRefresh: () => void
   onMaterialize: () => void
+  onAutoSelectReplyStyle: () => void
+  onBatchAutoReply: () => void
   onBatchAssign: () => void
 }
 
@@ -51,6 +55,40 @@ const actionsStyle: React.CSSProperties = {
   flexWrap: 'wrap',
 }
 
+const pillButtonStyle: React.CSSProperties = {
+  height: 40,
+  borderRadius: 999,
+  borderColor: '#d8e1ec',
+  background: 'rgba(248, 250, 252, 0.82)',
+  color: '#334155',
+  fontWeight: 600,
+  paddingInline: 16,
+  boxShadow: '0 6px 16px rgba(15, 23, 42, 0.04)',
+}
+
+const primaryPillButtonStyle: React.CSSProperties = {
+  ...pillButtonStyle,
+  borderColor: '#1677ff',
+  background: '#1677ff',
+  color: '#ffffff',
+  boxShadow: '0 8px 18px rgba(22, 119, 255, 0.18)',
+}
+
+const softBluePillButtonStyle: React.CSSProperties = {
+  ...pillButtonStyle,
+  borderColor: '#9bd7ff',
+  background: 'rgba(239, 248, 255, 0.9)',
+  color: '#1677ff',
+}
+
+function getBatchButtonStyle(enabled: boolean): React.CSSProperties {
+  return {
+    ...pillButtonStyle,
+    opacity: enabled ? 1 : 0.5,
+    cursor: enabled ? 'pointer' : 'not-allowed',
+  }
+}
+
 const LeadToolbar: React.FC<LeadToolbarProps> = ({
   labels,
   platform,
@@ -59,6 +97,8 @@ const LeadToolbar: React.FC<LeadToolbarProps> = ({
   postId,
   postOptions,
   materializing,
+  autoSelecting,
+  autoReplying,
   hasSelection,
   onPlatformChange,
   onStageChange,
@@ -67,9 +107,20 @@ const LeadToolbar: React.FC<LeadToolbarProps> = ({
   onSearch,
   onRefresh,
   onMaterialize,
+  onAutoSelectReplyStyle,
+  onBatchAutoReply,
   onBatchAssign,
 }) => (
-  <Card size="small" style={{ borderRadius: 8 }} styles={{ body: { padding: 12 } }}>
+  <Card
+    size="small"
+    style={{
+      borderRadius: 8,
+      borderColor: '#e8edf5',
+      background: 'rgba(255, 255, 255, 0.82)',
+      boxShadow: '0 12px 32px rgba(15, 23, 42, 0.05)',
+    }}
+    styles={{ body: { padding: 12 } }}
+  >
     <div style={toolbarBodyStyle}>
       <div style={filtersStyle}>
         <Select
@@ -114,9 +165,32 @@ const LeadToolbar: React.FC<LeadToolbarProps> = ({
         />
       </div>
       <Space style={actionsStyle}>
-        <Button icon={<ReloadOutlined />} onClick={onRefresh}>{labels.ui.refresh}</Button>
-        <Button type="primary" loading={materializing} onClick={onMaterialize}>{labels.ui.materialize}</Button>
-        <Button icon={<UserSwitchOutlined />} disabled={!hasSelection} onClick={onBatchAssign}>{labels.ui.batchAssign}</Button>
+        <Button style={pillButtonStyle} icon={<ReloadOutlined />} onClick={onRefresh}>{labels.ui.refresh}</Button>
+        <Button type="primary" style={primaryPillButtonStyle} loading={materializing} onClick={onMaterialize}>{labels.ui.materialize}</Button>
+        <Button
+          style={softBluePillButtonStyle}
+          icon={<ThunderboltOutlined />}
+          loading={autoSelecting}
+          onClick={onAutoSelectReplyStyle}
+        >
+          {labels.ui.autoSelectReplyStyle}
+        </Button>
+        <Button
+          style={softBluePillButtonStyle}
+          icon={<ThunderboltOutlined />}
+          loading={autoReplying}
+          onClick={onBatchAutoReply}
+        >
+          {labels.ui.batchAutoReply}
+        </Button>
+        <Button
+          style={getBatchButtonStyle(hasSelection)}
+          icon={<UserSwitchOutlined />}
+          disabled={!hasSelection}
+          onClick={onBatchAssign}
+        >
+          {labels.ui.batchAssign}
+        </Button>
       </Space>
     </div>
   </Card>

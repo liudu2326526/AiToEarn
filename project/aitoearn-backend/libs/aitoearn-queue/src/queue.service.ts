@@ -1,6 +1,7 @@
 import type { Job, JobsOptions, Queue } from 'bullmq'
 import type {
   AcquisitionCommentFetchData,
+  AcquisitionLeadReplyTaskData,
   AcquisitionLeadNotifyData,
   AcquisitionPostBackfillData,
   AcquisitionSensitiveCheckData,
@@ -61,6 +62,8 @@ export class QueueService {
     private acquisitionLeadNotifyQueue: Queue,
     @InjectQueue(QueueName.AcquisitionSensitiveCheck)
     private acquisitionSensitiveCheckQueue: Queue,
+    @InjectQueue(QueueName.AcquisitionLeadReplyTask)
+    private acquisitionLeadReplyTaskQueue: Queue,
   ) {
     // 从配置中读取默认的 job options
     this.defaultOptions = config.jobOptions || {
@@ -229,6 +232,16 @@ export class QueueService {
   async addAcquisitionSensitiveCheckJob(data: AcquisitionSensitiveCheckData, options?: JobsOptions) {
     return await this.acquisitionSensitiveCheckQueue.add('check-sensitive', data, {
       ...this.defaultOptions,
+      ...options,
+    })
+  }
+
+  async addAcquisitionLeadReplyTaskJob(data: AcquisitionLeadReplyTaskData, options?: JobsOptions) {
+    return await this.acquisitionLeadReplyTaskQueue.add(QueueName.AcquisitionLeadReplyTask, data, {
+      attempts: 2,
+      backoff: { type: 'fixed', delay: 30000 },
+      removeOnComplete: 1000,
+      removeOnFail: 1000,
       ...options,
     })
   }

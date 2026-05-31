@@ -18,6 +18,7 @@
     "tabs"
   ],
   "host_permissions": [
+    "<all_urls>",
     "https://www.xiaohongshu.com/*"
   ],
   "content_security_policy": {

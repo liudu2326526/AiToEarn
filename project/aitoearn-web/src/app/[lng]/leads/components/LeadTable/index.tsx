@@ -1,9 +1,9 @@
 import React from 'react'
 import { Avatar, Button, Select, Space, Table, Tag, Tooltip, Typography, message } from 'antd'
-import { EyeOutlined, TeamOutlined } from '@ant-design/icons'
+import { EyeOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import type { LeadItem, LeadStage } from '@/api/leads'
-import { claimLead, updateLeadStage } from '@/api/leads'
+import type { LeadItem, LeadReplyStyle, LeadStage } from '@/api/leads'
+import { updateLeadReplyStyle, updateLeadStage } from '@/api/leads'
 import LeadStageTag from '../LeadStageTag'
 import type { LeadLabels } from '../types'
 
@@ -41,11 +41,6 @@ const commentPreviewStyle: React.CSSProperties = {
 
 const compactButtonStyle: React.CSSProperties = {
   whiteSpace: 'nowrap',
-}
-
-const formatAssignee = (value?: string) => {
-  if (!value) return ''
-  return value.length > 10 ? `${value.slice(0, 8)}...` : value
 }
 
 const LeadTable: React.FC<LeadTableProps> = ({
@@ -135,17 +130,23 @@ const LeadTable: React.FC<LeadTableProps> = ({
       ),
     },
     {
-      title: labels.ui.assignee,
-      dataIndex: 'assignee',
-      key: 'assignee',
-      width: 92,
-      render: (value?: string) => value
-        ? (
-            <Tooltip title={value}>
-              <Text style={{ ...ellipsisTextStyle, maxWidth: 64 }}>{formatAssignee(value)}</Text>
-            </Tooltip>
-          )
-        : <Text type="secondary">{labels.ui.unassigned}</Text>,
+      title: labels.ui.replyStyle,
+      dataIndex: 'replyStyle',
+      key: 'replyStyle',
+      width: 138,
+      render: (value: LeadReplyStyle | undefined, record: LeadItem) => (
+        <Select
+          size="small"
+          value={value || 'auto'}
+          style={{ width: 120 }}
+          onChange={async nextValue => {
+            await updateLeadReplyStyle(record.id, nextValue as LeadReplyStyle)
+            message.success(labels.ui.replyStyleUpdated)
+            await onRefresh()
+          }}
+          options={Object.entries(labels.replyStyle).map(([style, label]) => ({ value: style, label }))}
+        />
+      ),
     },
     {
       title: labels.ui.lastFollowUp,
@@ -163,7 +164,7 @@ const LeadTable: React.FC<LeadTableProps> = ({
     {
       title: labels.ui.actions,
       key: 'actions',
-      width: 178,
+      width: 132,
       fixed: 'right' as const,
       render: (_: unknown, record: LeadItem) => (
         <Space size={6} wrap={false}>
@@ -174,19 +175,6 @@ const LeadTable: React.FC<LeadTableProps> = ({
               icon={<EyeOutlined />}
               style={compactButtonStyle}
               onClick={() => onOpenDetail(record)}
-            />
-          </Tooltip>
-          <Tooltip title={labels.ui.claim}>
-            <Button
-              aria-label={labels.ui.claim}
-              size="small"
-              icon={<TeamOutlined />}
-              style={compactButtonStyle}
-              onClick={async () => {
-                await claimLead(record.id)
-                message.success(labels.ui.claimSuccess)
-                await onRefresh()
-              }}
             />
           </Tooltip>
           <Select
@@ -212,7 +200,7 @@ const LeadTable: React.FC<LeadTableProps> = ({
       columns={columns}
       size="middle"
       tableLayout="fixed"
-      scroll={{ x: 1268 }}
+      scroll={{ x: 1288 }}
       rowSelection={{ selectedRowKeys, onChange: onSelectionChange, columnWidth: 48, fixed: true }}
       pagination={{
         current: page,

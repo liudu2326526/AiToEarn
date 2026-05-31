@@ -10,6 +10,11 @@ export type HookTemplateCategory =
   | 'wechat_guide'
 
 export type ScriptTemplateScene =
+  | 'friendly'
+  | 'professional'
+  | 'promotion'
+  | 'restrained'
+  | 'reply_style_classifier'
   | 'comment_ask_price'
   | 'comment_ask_link'
   | 'comment_ask_size'

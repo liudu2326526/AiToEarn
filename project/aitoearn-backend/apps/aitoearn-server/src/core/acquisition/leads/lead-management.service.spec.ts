@@ -41,6 +41,73 @@ describe('LeadManagementService', () => {
     }))
   })
 
+  it('updates the lead reply style and records the change', async () => {
+    leadRepository.getByIdAndUser.mockResolvedValue({ id: 'lead-1', replyStyle: 'auto' })
+    leadRepository.updateById.mockResolvedValue({ id: 'lead-1', replyStyle: 'promotion' })
+
+    const result = await service.updateReplyStyle('user-1', 'lead-1', 'promotion', 'operator-1')
+
+    expect(result.replyStyle).toBe('promotion')
+    expect(leadRepository.updateById).toHaveBeenCalledWith('lead-1', expect.objectContaining({
+      replyStyle: 'promotion',
+    }))
+    expect(leadActivityLogRepository.append).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'user-1',
+      leadId: 'lead-1',
+      action: 'reply_style_changed',
+      fromValue: 'auto',
+      toValue: 'promotion',
+    }))
+  })
+
+  it('auto selects reply styles for filtered leads that still use system judgement', async () => {
+    leadRepository.listByUser.mockResolvedValue([
+      [
+        { id: 'lead-link', replyStyle: 'auto', sourceContent: '衣服求链' },
+        { id: 'lead-size', replyStyle: 'auto', sourceContent: '这个尺码适合 160 吗' },
+        { id: 'lead-negative', replyStyle: 'auto', sourceContent: '这个质量不行，太贵了' },
+        { id: 'lead-friendly', replyStyle: 'auto', sourceContent: '哈哈哈太可爱了' },
+        { id: 'lead-manual', replyStyle: 'friendly', sourceContent: '哪里买' },
+      ],
+      5,
+    ])
+    leadRepository.updateById.mockImplementation((id, data) => Promise.resolve({ id, ...data }))
+
+    const result = await service.autoSelectReplyStyles(
+      'user-1',
+      { postId: 'post-1', onlyAuto: true, limit: 20 } as any,
+      'operator-1',
+    )
+
+    expect(result).toEqual({
+      total: 5,
+      updated: 4,
+      skipped: 1,
+      styles: {
+        friendly: 1,
+        professional: 1,
+        promotion: 1,
+        restrained: 1,
+      },
+    })
+    expect(leadRepository.listByUser).toHaveBeenCalledWith('user-1', expect.objectContaining({
+      postId: 'post-1',
+      page: 1,
+      pageSize: 20,
+    }))
+    expect(leadRepository.updateById).toHaveBeenCalledWith('lead-link', expect.objectContaining({ replyStyle: 'promotion' }))
+    expect(leadRepository.updateById).toHaveBeenCalledWith('lead-size', expect.objectContaining({ replyStyle: 'professional' }))
+    expect(leadRepository.updateById).toHaveBeenCalledWith('lead-negative', expect.objectContaining({ replyStyle: 'restrained' }))
+    expect(leadRepository.updateById).toHaveBeenCalledWith('lead-friendly', expect.objectContaining({ replyStyle: 'friendly' }))
+    expect(leadRepository.updateById).not.toHaveBeenCalledWith('lead-manual', expect.anything())
+    expect(leadActivityLogRepository.append).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'auto_reply_style_selected',
+      leadId: 'lead-link',
+      fromValue: 'auto',
+      toValue: 'promotion',
+    }))
+  })
+
   it('returns aggregate status stats from repository instead of current page data', async () => {
     leadRepository.statsByUser.mockResolvedValue({
       total: 42,

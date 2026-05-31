@@ -32,6 +32,14 @@ export enum LeadSuggestionStatus {
   Edited = 'edited',
 }
 
+export enum LeadReplyStyle {
+  Auto = 'auto',
+  Friendly = 'friendly',
+  Professional = 'professional',
+  Promotion = 'promotion',
+  Restrained = 'restrained',
+}
+
 @Schema({ _id: false })
 export class LeadAttribution {
   @Prop({ type: String, default: '' })
@@ -117,6 +125,9 @@ export class Lead extends BaseTemp {
 
   @Prop({ type: String, default: '', index: true })
   assignee: string
+
+  @Prop({ required: true, enum: LeadReplyStyle, default: LeadReplyStyle.Auto, index: true, type: String })
+  replyStyle: LeadReplyStyle
 
   @Prop({ type: LeadAttributionSchema, default: () => ({}) })
   attribution: LeadAttribution

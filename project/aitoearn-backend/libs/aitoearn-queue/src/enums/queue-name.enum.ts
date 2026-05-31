@@ -49,4 +49,7 @@ export enum QueueName {
 
   /** 获客敏感词检查队列 */
   AcquisitionSensitiveCheck = 'acquisition_sensitive_check',
+
+  /** 获客线索自动回复执行队列 */
+  AcquisitionLeadReplyTask = 'acquisition_lead_reply_task',
 }

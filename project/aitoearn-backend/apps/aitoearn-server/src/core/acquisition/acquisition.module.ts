@@ -21,13 +21,19 @@ import { StrategyTemplateService } from './content/strategy-template.service'
 import { AcquisitionLeadsController } from './leads/acquisition-leads.controller'
 import { LeadManagementService } from './leads/lead-management.service'
 import { LeadMaterializationService } from './leads/lead-materialization.service'
+import { PlatformReplyAdapterRegistry } from './leads/platform-reply-adapters/registry'
+import { XhsBrowserPluginReplyAdapter } from './leads/platform-reply-adapters/xhs-browser-plugin-reply.adapter'
+import { ReplyAutomationService } from './leads/reply-automation.service'
 import { ReplyExecutionService } from './leads/reply-execution.service'
 import { ReplySuggestionService } from './leads/reply-suggestion.service'
+import { ReplyTaskExecutorService } from './leads/reply-task-executor.service'
+import { ReplyTaskScreenshotService } from './leads/reply-task-screenshot.service'
 import { DouyinAcquisitionProvider } from './providers/douyin/douyin-acquisition.provider'
 import { XhsBridgeAcquisitionProvider } from './providers/xhs/xhs-bridge-acquisition.provider'
 import { SnapshotPersistenceService } from './snapshot-persistence.service'
 import { AcquisitionCommentFetchConsumer } from './workers/acquisition-comment-fetch.consumer'
 import { AcquisitionPostBackfillConsumer } from './workers/acquisition-post-backfill.consumer'
+import { LeadReplyTaskConsumer } from './workers/lead-reply-task.consumer'
 import { WorkDataController } from './work-data/work-data.controller'
 import { WorkDataService } from './work-data/work-data.service'
 
@@ -56,6 +62,7 @@ import { WorkDataService } from './work-data/work-data.service'
     DouyinAcquisitionProvider,
     AcquisitionCommentFetchConsumer,
     AcquisitionPostBackfillConsumer,
+    LeadReplyTaskConsumer,
     PlatformContentAdapterService,
     HookSelectionService,
     ContentGenerationService,
@@ -67,6 +74,11 @@ import { WorkDataService } from './work-data/work-data.service'
     LeadManagementService,
     ReplySuggestionService,
     ReplyExecutionService,
+    ReplyAutomationService,
+    ReplyTaskExecutorService,
+    ReplyTaskScreenshotService,
+    XhsBrowserPluginReplyAdapter,
+    PlatformReplyAdapterRegistry,
     {
       provide: ACQUISITION_PROVIDERS,
       useFactory: (

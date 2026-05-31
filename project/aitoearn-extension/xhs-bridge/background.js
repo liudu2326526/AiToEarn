@@ -1,3 +1,11 @@
+import {
+  buildXhsDomReplyTarget,
+  buildXhsReplyBody,
+  normalizeXhsDomReplyResponse,
+  normalizeXhsReplyResponse,
+  validateReplyParams,
+} from './reply-payload.js'
+
 const XHS_ORIGIN = 'https://www.xiaohongshu.com'
 const OFFSCREEN_URL = 'offscreen.html'
 
@@ -102,6 +110,8 @@ async function handleCommand(method, params) {
       return waitDomStable(Number(params.timeout || 10000), Number(params.interval || 500))
     case 'evaluate':
       return evaluate(String(params.expression || ''))
+    case 'post_comment_reply':
+      return postCommentReply(params)
     default:
       throw new Error(`Unsupported XHS Bridge method: ${method}`)
   }
@@ -217,6 +227,222 @@ async function evaluate(expression) {
   })
 
   return results[0]?.result
+}
+
+async function postCommentReply(rawParams) {
+  const params = validateReplyParams(rawParams)
+  const tab = await getOrCreateXhsTab()
+
+  if (!tab.id) {
+    throw new Error('没有可用的小红书标签页')
+  }
+
+  await chrome.tabs.update(tab.id, { url: params.postUrl, active: params.visibleTab })
+  currentXhsTabId = tab.id
+  await waitForLoad(60000)
+  await waitDomStable(10000, 500)
+
+  const domResults = await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    world: 'MAIN',
+    func: postXhsReplyViaDom,
+    args: [buildXhsDomReplyTarget(params)],
+  })
+
+  const domResult = normalizeXhsDomReplyResponse(domResults[0]?.result)
+  const normalized = domResult.success
+    ? domResult
+    : await postXhsReplyViaApi(tab.id, params, domResult.message)
+  const shouldCaptureScreenshot = params.screenshotPolicy === 'always'
+    || (params.screenshotPolicy === 'failure' && !normalized.success)
+  const screenshotDataUrl = shouldCaptureScreenshot
+    ? await captureXhsVisibleTab(tab)
+    : ''
+
+  if (!normalized.success) {
+    return {
+      ...normalized,
+      needHumanAssist: true,
+      // signatureRejected changes the operator-facing reason only. The final
+      // task status is still human_required for any platform rejection.
+      verificationReason: normalized.signatureRejected
+        ? '小红书请求签名不可用，需要切换到 DOM 自动化或复用现有插件签名通道'
+        : normalized.message,
+      screenshotDataUrl,
+    }
+  }
+
+  return {
+    ...normalized,
+    screenshotDataUrl,
+  }
+}
+
+async function postXhsReplyViaApi(tabId, params, domFailureReason) {
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    world: 'MAIN',
+    func: async (body) => {
+      // This must execute in the Xiaohongshu page MAIN world so it can use the
+      // same fetch environment as the logged-in page. If the page does not expose
+      // the signing-patched fetch path, the response is treated as human-required.
+      const response = await fetch('/api/sns/web/v1/comment/post', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'content-type': 'application/json;charset=UTF-8',
+        },
+        body: JSON.stringify(body),
+      })
+
+      const text = await response.text()
+      let payload
+      try {
+        payload = JSON.parse(text)
+      }
+      catch {
+        payload = { success: false, msg: text || `HTTP ${response.status}` }
+      }
+
+      if (!response.ok) {
+        return {
+          success: false,
+          code: response.status,
+          msg: payload?.msg || payload?.message || `HTTP ${response.status}`,
+          data: payload?.data,
+        }
+      }
+
+      return payload
+    },
+    args: [buildXhsReplyBody(params)],
+  })
+
+  const normalized = normalizeXhsReplyResponse(results[0]?.result)
+  if (!normalized.success && domFailureReason) {
+    normalized.message = `DOM 自动化失败: ${domFailureReason}; API 回退失败: ${normalized.message}`
+  }
+  return normalized
+}
+
+async function postXhsReplyViaDom(target) {
+  const sleepInPage = ms => new Promise(resolve => setTimeout(resolve, ms))
+  const isVisible = (element) => {
+    if (!element) return false
+    const rect = element.getBoundingClientRect()
+    const style = window.getComputedStyle(element)
+    return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none'
+  }
+  const visibleText = element => String(element?.innerText || element?.textContent || '').trim()
+  const waitFor = async (predicate, timeoutMs = 8000, intervalMs = 150) => {
+    const deadline = Date.now() + timeoutMs
+    while (Date.now() < deadline) {
+      const result = predicate()
+      if (result) return result
+      await sleepInPage(intervalMs)
+    }
+    return null
+  }
+  const dispatchTextInput = (input, content) => {
+    input.focus()
+    if (input.isContentEditable) {
+      input.textContent = ''
+      document.execCommand?.('insertText', false, content)
+      if (visibleText(input) !== content) input.textContent = content
+    }
+    else {
+      const proto = input instanceof HTMLTextAreaElement
+        ? HTMLTextAreaElement.prototype
+        : HTMLInputElement.prototype
+      const valueSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set
+      if (valueSetter) valueSetter.call(input, content)
+      else input.value = content
+    }
+    input.dispatchEvent(new InputEvent('input', {
+      bubbles: true,
+      cancelable: true,
+      data: content,
+      inputType: 'insertText',
+    }))
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+  }
+  const findComment = () => {
+    for (const selector of target.selectors) {
+      const matched = document.querySelector(selector)
+      if (matched) return matched.closest('.comment-item') || matched
+    }
+    return null
+  }
+  const comment = findComment()
+  if (!comment) {
+    return { success: false, message: `未找到评论 ${target.commentId}` }
+  }
+
+  comment.scrollIntoView({ block: 'center', behavior: 'instant' })
+  await sleepInPage(300)
+
+  const replyButton = Array.from(comment.querySelectorAll('button, span, div, a'))
+    .find(element => isVisible(element) && visibleText(element) === '回复')
+  if (!replyButton) {
+    return { success: false, message: `未找到评论 ${target.commentId} 的回复按钮` }
+  }
+  replyButton.click()
+
+  const input = await waitFor(() => {
+    const active = document.activeElement
+    if (active && (active.matches?.('textarea,input,[contenteditable="true"]')) && isVisible(active)) {
+      return active
+    }
+    const fields = Array.from(document.querySelectorAll('textarea,input,[contenteditable="true"]'))
+      .filter(isVisible)
+    return fields[fields.length - 1] || null
+  }, 8000)
+  if (!input) {
+    return { success: false, message: '点击回复后未出现输入框' }
+  }
+
+  dispatchTextInput(input, target.content)
+
+  const sendButton = await waitFor(() => {
+    return Array.from(document.querySelectorAll('button'))
+      .find((button) => {
+        const disabled = button.disabled || button.getAttribute('aria-disabled') === 'true'
+        return isVisible(button) && !disabled && visibleText(button) === '发送'
+      })
+  }, 8000)
+  if (!sendButton) {
+    return { success: false, message: '输入回复后发送按钮不可用' }
+  }
+
+  sendButton.click()
+
+  const appeared = await waitFor(() => {
+    return document.body?.innerText?.includes(target.content)
+  }, 10000, 250)
+
+  if (!appeared) {
+    return { success: false, message: '已点击发送，但页面未出现回复内容' }
+  }
+
+  return {
+    success: true,
+    replyId: `dom:${target.commentId}:${Date.now()}`,
+    message: 'DOM 自动化回复已发布',
+  }
+}
+
+async function captureXhsVisibleTab(tab) {
+  if (!tab.id || !tab.windowId) return ''
+  try {
+    await chrome.windows.update(tab.windowId, { focused: true })
+    await chrome.tabs.update(tab.id, { active: true })
+    await sleep(300)
+    return await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' })
+  }
+  catch (error) {
+    console.warn('[AitoBee XHS Bridge] failed to capture visible tab', error)
+    return ''
+  }
 }
 
 function sleep(ms) {

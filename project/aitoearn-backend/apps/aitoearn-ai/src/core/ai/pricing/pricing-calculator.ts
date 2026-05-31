@@ -67,9 +67,9 @@ function calculateModalityPoints(
 
     let tokens = details?.[modality]
 
-    // If text tokens are missing and no modality details were provided at all,
-    // consume remaining tokens as text (backward compat for APIs without breakdown).
-    if (!isValidNumber(tokens) && modality === 'text' && details == null) {
+    // Providers may return details with only vendor-specific fields such as
+    // cache_read or reasoning. Bill any unclassified remainder as text.
+    if (!isValidNumber(tokens) && modality === 'text') {
       const residual = totalTokens - providedDetailsTotal
       tokens = residual > 0 ? residual : 0
     }

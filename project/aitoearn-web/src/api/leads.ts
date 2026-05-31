@@ -3,6 +3,8 @@ import type { AcquisitionPlatform } from './acquisition'
 
 export type LeadStage = 'new_comment' | 'replied' | 'messaged' | 'wechat_guided' | 'wechat_added' | 'lost'
 export type LeadStatus = 'pending' | 'in_progress' | 'converted' | 'lost' | 'invalid'
+export type LeadReplyStyle = 'auto' | 'friendly' | 'professional' | 'promotion' | 'restrained'
+export type LeadReplyTaskStatus = 'pending' | 'queued' | 'running' | 'success' | 'failed' | 'blocked' | 'human_required' | 'cancelled'
 
 export interface LeadItem {
   id: string
@@ -20,6 +22,7 @@ export interface LeadItem {
   stage: LeadStage
   status: LeadStatus
   assignee: string
+  replyStyle: LeadReplyStyle
   suggestedReply?: {
     content: string
     model: string
@@ -42,6 +45,28 @@ export interface LeadActivityItem {
   createdAt?: string
 }
 
+export interface LeadReplyTaskItem {
+  id: string
+  leadId: string
+  platform: AcquisitionPlatform
+  accountId: string
+  postId: string
+  postUrl: string
+  commentId: string
+  replyContent: string
+  replyStyle: LeadReplyStyle
+  status: LeadReplyTaskStatus
+  executorKind: 'browser_plugin'
+  attemptCount: number
+  lastError?: string
+  platformReplyId?: string
+  screenshotUrl?: string
+  startedAt?: string
+  finishedAt?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
 export interface LeadListResponse {
   list: LeadItem[]
   total: number
@@ -57,6 +82,13 @@ export interface LeadStats {
   converted: number
   lost: number
   invalid: number
+}
+
+export interface AutoSelectLeadReplyStyleResult {
+  total: number
+  updated: number
+  skipped: number
+  styles: Record<Exclude<LeadReplyStyle, 'auto'>, number>
 }
 
 export async function listLeads(params: Record<string, string | number | undefined>) {
@@ -127,6 +159,54 @@ export async function updateLeadAssignee(id: string, assignee: string) {
 export async function batchAssignLeads(leadIds: string[], assignee: string) {
   const response = await http.patch<{ updated: number }>('acquisition/leads/batch-assignee', { leadIds, assignee })
   if (!response || String(response.code) !== '0') throw new Error(response?.message || 'batch assign leads failed')
+  return response.data
+}
+
+export async function updateLeadReplyStyle(id: string, replyStyle: LeadReplyStyle) {
+  const response = await http.patch<LeadItem>(`acquisition/leads/${id}/reply-style`, { replyStyle })
+  if (!response || String(response.code) !== '0') throw new Error(response?.message || 'update lead reply style failed')
+  return response.data
+}
+
+export async function batchUpdateLeadReplyStyle(leadIds: string[], replyStyle: LeadReplyStyle) {
+  const response = await http.patch<{ updated: number }>('acquisition/leads/batch-reply-style', { leadIds, replyStyle })
+  if (!response || String(response.code) !== '0') throw new Error(response?.message || 'batch update lead reply style failed')
+  return response.data
+}
+
+export async function autoSelectLeadReplyStyle(params: Record<string, string | number | boolean | undefined>) {
+  const response = await http.patch<AutoSelectLeadReplyStyleResult>('acquisition/leads/auto-reply-style', params)
+  if (!response || String(response.code) !== '0') throw new Error(response?.message || 'auto select lead reply style failed')
+  return response.data
+}
+
+export async function autoReplyLead(id: string, data: { regenerate?: boolean; dryRun?: boolean; requireSuggestionReview?: boolean } = {}) {
+  const response = await http.post<{ task: LeadReplyTaskItem | null; lead: LeadItem; dryRun?: boolean }>(`acquisition/leads/${id}/auto-reply`, data)
+  if (!response || String(response.code) !== '0') throw new Error(response?.message || 'auto reply lead failed')
+  return response.data
+}
+
+export async function batchAutoReplyLeads(params: Record<string, string | number | boolean | undefined>) {
+  const response = await http.post<{ matched: number; queued: number; blocked: number; skipped: number; failed: number; taskIds: string[] }>('acquisition/leads/auto-reply/batch', params)
+  if (!response || String(response.code) !== '0') throw new Error(response?.message || 'batch auto reply leads failed')
+  return response.data
+}
+
+export async function listLeadReplyTasks(id: string) {
+  const response = await http.get<{ list: LeadReplyTaskItem[]; total: number }>(`acquisition/leads/${id}/reply-tasks`)
+  if (!response || String(response.code) !== '0') throw new Error(response?.message || 'list lead reply tasks failed')
+  return response.data
+}
+
+export async function cancelLeadReplyTask(taskId: string) {
+  const response = await http.post<LeadReplyTaskItem>(`acquisition/leads/reply-tasks/${taskId}/cancel`)
+  if (!response || String(response.code) !== '0') throw new Error(response?.message || 'cancel lead reply task failed')
+  return response.data
+}
+
+export async function retryLeadReplyTask(taskId: string) {
+  const response = await http.post<LeadReplyTaskItem>(`acquisition/leads/reply-tasks/${taskId}/retry`)
+  if (!response || String(response.code) !== '0') throw new Error(response?.message || 'retry lead reply task failed')
   return response.data
 }
 

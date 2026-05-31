@@ -5,6 +5,7 @@ import { EngagementSubTask, EngagementSubTaskSchema, EngagementTask, EngagementT
 import { HookTemplate, HookTemplateSchema } from './hook-template.schema'
 import { InteractionRecord, InteractionRecordSchema } from './interaction-record.schema'
 import { LeadActivityLog, LeadActivityLogSchema } from './lead-activity-log.schema'
+import { LeadReplyTask, LeadReplyTaskSchema } from './lead-reply-task.schema'
 import { Lead, LeadSchema } from './lead.schema'
 import { OAuth2Credential, OAuth2CredentialSchema } from './oauth2-credential.schema'
 import { PostMediaContainer, PostMediaContainerSchema } from './post-media-container.schema'
@@ -25,6 +26,7 @@ export * from './engagement-task.schema'
 export * from './hook-template.schema'
 export * from './interaction-record.schema'
 export * from './lead-activity-log.schema'
+export * from './lead-reply-task.schema'
 export * from './lead.schema'
 export * from './oauth2-credential.schema'
 export * from './post-media-container.schema'
@@ -54,6 +56,7 @@ export const schemas = [
   { name: HookTemplate.name, schema: HookTemplateSchema },
   { name: Lead.name, schema: LeadSchema },
   { name: LeadActivityLog.name, schema: LeadActivityLogSchema },
+  { name: LeadReplyTask.name, schema: LeadReplyTaskSchema },
   { name: PostSnapshot.name, schema: PostSnapshotSchema },
   { name: ScriptTemplate.name, schema: ScriptTemplateSchema },
   { name: AcquisitionContent.name, schema: AcquisitionContentSchema },

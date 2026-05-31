@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { LeadActivityLogRepository, LeadRepository, MonitoredPostRepository } from '@yikart/channel-db'
 import { AppException, ResponseCode } from '@yikart/common'
-import { LeadListQueryDto, LeadStatsQueryDto, PrivateMessageCapabilityQueryDto } from './acquisition-leads.dto'
+import { AutoSelectLeadReplyStyleDto, LeadListQueryDto, LeadStatsQueryDto, PrivateMessageCapabilityQueryDto } from './acquisition-leads.dto'
 
 const STAGE_STATUS_MAP = {
   new_comment: 'pending',
@@ -11,6 +11,9 @@ const STAGE_STATUS_MAP = {
   wechat_added: 'converted',
   lost: 'lost',
 } as const
+
+type ReplyStyle = 'auto' | 'friendly' | 'professional' | 'promotion' | 'restrained'
+type ResolvedReplyStyle = Exclude<ReplyStyle, 'auto'>
 
 @Injectable()
 export class LeadManagementService {
@@ -79,6 +82,99 @@ export class LeadManagementService {
       updated += 1
     }
     return { updated }
+  }
+
+  async updateReplyStyle(userId: string, id: string, replyStyle: ReplyStyle, operatorId: string) {
+    const lead = await this.detail(userId, id)
+    const updated = await this.leadRepository.updateById(lead.id, {
+      replyStyle,
+      lastFollowUpAt: new Date(),
+    } as any)
+    await this.leadActivityLogRepository.append({
+      userId,
+      leadId: lead.id,
+      action: 'reply_style_changed',
+      operatorId,
+      fromValue: lead.replyStyle || 'auto',
+      toValue: replyStyle,
+    })
+    return updated
+  }
+
+  async batchUpdateReplyStyle(userId: string, leadIds: string[], replyStyle: ReplyStyle, operatorId: string) {
+    let updated = 0
+    for (const id of leadIds) {
+      const lead = await this.leadRepository.getByIdAndUser(id, userId)
+      if (!lead) continue
+      await this.leadRepository.updateById(lead.id, {
+        replyStyle,
+        lastFollowUpAt: new Date(),
+      } as any)
+      await this.leadActivityLogRepository.append({
+        userId,
+        leadId: lead.id,
+        action: 'batch_reply_style_changed',
+        operatorId,
+        fromValue: lead.replyStyle || 'auto',
+        toValue: replyStyle,
+      })
+      updated += 1
+    }
+    return { updated }
+  }
+
+  async autoSelectReplyStyles(userId: string, query: AutoSelectLeadReplyStyleDto, operatorId: string) {
+    const [list, total] = await this.leadRepository.listByUser(userId, {
+      platform: query.platform,
+      accountId: query.accountId,
+      postId: query.postId,
+      stage: query.stage,
+      status: query.status,
+      assignee: query.assignee,
+      keyword: query.keyword,
+      page: 1,
+      pageSize: query.limit || 100,
+    })
+
+    const styles: Record<ResolvedReplyStyle, number> = {
+      friendly: 0,
+      professional: 0,
+      promotion: 0,
+      restrained: 0,
+    }
+    let updated = 0
+    let skipped = 0
+
+    for (const lead of list as any[]) {
+      const fromValue = lead.replyStyle || 'auto'
+      if (query.onlyAuto !== false && fromValue !== 'auto') {
+        skipped += 1
+        continue
+      }
+
+      const replyStyle = this.inferReplyStyle(lead.sourceContent || '')
+      await this.leadRepository.updateById(lead.id, {
+        replyStyle,
+        lastFollowUpAt: new Date(),
+      } as any)
+      await this.leadActivityLogRepository.append({
+        userId,
+        leadId: lead.id,
+        action: 'auto_reply_style_selected',
+        operatorId,
+        fromValue,
+        toValue: replyStyle,
+      })
+      styles[replyStyle] += 1
+      updated += 1
+    }
+
+    return {
+      total,
+      updated,
+      skipped,
+      styles,
+    }
   }
 
   async changeStage(userId: string, id: string, stage: keyof typeof STAGE_STATUS_MAP, operatorId: string) {
@@ -154,5 +250,19 @@ export class LeadManagementService {
         postCover: item.postCover || post.cover || '',
       }
     })
+  }
+
+  private inferReplyStyle(content: string): ResolvedReplyStyle {
+    const normalized = String(content || '').trim()
+    if (/差|贵|不行|不能要|吐槽|无语|垃圾|骗人|踩雷|投诉|失望|退货|不好|假的|质疑|小老头|老头|不爱笑|列宁/.test(normalized)) {
+      return 'restrained'
+    }
+    if (/链接|求链|怎么买|哪里买|下单|同款|橱窗|购买|求链接|发链接|有链接|价格|多少钱|怎么买到/.test(normalized)) {
+      return 'promotion'
+    }
+    if (/尺码|大小|身高|体重|适合|面料|材质|版型|长度|颜色|设计|工业|参数|配置|怎么选|推荐码数/.test(normalized)) {
+      return 'professional'
+    }
+    return 'friendly'
   }
 }

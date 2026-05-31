@@ -3,6 +3,11 @@ import { DEFAULT_SCHEMA_OPTIONS } from '../channel-db.constants'
 import { BaseTemp } from './time.tamp'
 
 export enum ScriptTemplateScene {
+  Friendly = 'friendly',
+  Professional = 'professional',
+  Promotion = 'promotion',
+  Restrained = 'restrained',
+  ReplyStyleClassifier = 'reply_style_classifier',
   CommentAskPrice = 'comment_ask_price',
   CommentAskLink = 'comment_ask_link',
   CommentAskSize = 'comment_ask_size',

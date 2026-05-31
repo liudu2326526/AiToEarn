@@ -30,3 +30,7 @@ export interface AcquisitionSensitiveCheckData {
   text: string
   context: 'public_comment' | 'private_message' | 'hook_template' | 'script_template'
 }
+
+export interface AcquisitionLeadReplyTaskData {
+  taskId: string
+}

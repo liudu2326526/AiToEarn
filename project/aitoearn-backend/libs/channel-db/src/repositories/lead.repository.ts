@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import { FilterQuery, Model } from 'mongoose'
 import { DB_CONNECTION_NAME } from '../common'
-import { Lead, LeadSourceType, LeadStage, LeadStatus } from '../schemas'
+import { Lead, LeadReplyStyle, LeadSourceType, LeadStage, LeadStatus } from '../schemas'
 import { BaseRepository } from './base.repository'
 
 @Injectable()
@@ -129,6 +129,7 @@ export class LeadRepository extends BaseRepository<Lead> {
           sourceType: LeadSourceType.PublicComment,
           stage: LeadStage.NewComment,
           status: LeadStatus.Pending,
+          replyStyle: LeadReplyStyle.Auto,
           lastFollowUpAt: new Date(),
         },
         $set: {
