@@ -31,6 +31,7 @@ import { ReplyTaskScreenshotService } from './leads/reply-task-screenshot.servic
 import { DouyinAcquisitionProvider } from './providers/douyin/douyin-acquisition.provider'
 import { XhsBridgeAcquisitionProvider } from './providers/xhs/xhs-bridge-acquisition.provider'
 import { SnapshotPersistenceService } from './snapshot-persistence.service'
+import { XhsTokenRefreshService } from './xhs-token-refresh.service'
 import { AcquisitionCommentFetchConsumer } from './workers/acquisition-comment-fetch.consumer'
 import { AcquisitionPostBackfillConsumer } from './workers/acquisition-post-backfill.consumer'
 import { LeadReplyTaskConsumer } from './workers/lead-reply-task.consumer'
@@ -79,6 +80,7 @@ import { WorkDataService } from './work-data/work-data.service'
     ReplyTaskScreenshotService,
     XhsBrowserPluginReplyAdapter,
     PlatformReplyAdapterRegistry,
+    XhsTokenRefreshService,
     {
       provide: ACQUISITION_PROVIDERS,
       useFactory: (

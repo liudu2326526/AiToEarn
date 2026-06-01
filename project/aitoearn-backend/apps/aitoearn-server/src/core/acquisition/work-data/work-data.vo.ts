@@ -20,6 +20,10 @@ export const MonitoredPostVoSchema = z.object({
   latestMetrics: z.record(z.string(), z.number()).describe('最新指标'),
   latestCommentCount: z.number().describe('最新评论数'),
   lastFetchBatch: z.string().describe('最近抓取批次'),
+  publishRecordId: z.string().optional().describe('发布记录 ID'),
+  publishTraceId: z.string().optional().describe('发布 trace ID'),
+  linkStatus: z.string().optional().describe('作品链接状态'),
+  linkError: z.string().optional().describe('作品链接错误'),
   createdAt: z.date().describe('创建时间'),
   updatedAt: z.date().describe('更新时间'),
 })

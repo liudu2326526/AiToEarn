@@ -14,7 +14,7 @@ import { AcquisitionPlatform, METRIC_KEY_COMMENT_COUNT } from '../acquisition.co
 import { CreateMonitoredPostDto, ListMonitoredPostQueryDto, WorkCommentQueryDto } from './work-data.dto'
 import { PersistedAcquisitionFetchResult } from '../acquisition.types'
 import { AppException, ResponseCode } from '@yikart/common'
-import { AccountRepository } from '@yikart/mongodb'
+import { AccountRepository, PublishRecordRepository } from '@yikart/mongodb'
 import { FilterQuery } from 'mongoose'
 import { LeadMaterializationService } from '../leads/lead-materialization.service'
 
@@ -33,6 +33,7 @@ export class WorkDataService {
     private readonly accountOpsConfigRepository: AccountOpsConfigRepository,
     private readonly accountRepository: AccountRepository,
     private readonly acquisitionService: AcquisitionService,
+    private readonly publishRecordRepository: PublishRecordRepository,
     @Optional() private readonly leadMaterializationService?: LeadMaterializationService,
   ) {}
 
@@ -521,6 +522,91 @@ export class WorkDataService {
       monitorStatus: 'active',
       fetchStatus: 'idle',
     })
+  }
+
+  async backfillHistoricalXhsPublishedMonitors(userId: string, options: { limit?: number } = {}) {
+    const limit = Math.min(Math.max(options.limit || 100, 1), 500)
+    const records = await this.publishRecordRepository.listXhsPendingRecordsWithRealNoteIdForMonitorBackfill(userId, limit)
+    const candidates = records
+      .map(record => ({
+        record,
+        publishRecordId: record.id || (record as any)._id?.toString() || '',
+        accountId: record.accountId || '',
+        noteId: this.isLikelyXhsNoteId(record.dataId) ? record.dataId! : '',
+      }))
+      .filter(item => item.accountId && item.noteId)
+
+    const existing = await this.monitoredPostRepository.findByUserPostIdentities(
+      userId,
+      candidates.map(item => ({
+        platform: AcquisitionPlatform.Xhs,
+        accountId: item.accountId,
+        postId: item.noteId,
+      })),
+    )
+    const existingKeys = new Set(existing.map(item => `${item.platform}:${item.accountId}:${item.postId}`))
+
+    let created = 0
+    let skippedExisting = 0
+    let skippedInvalid = records.length - candidates.length
+
+    for (const item of candidates) {
+      const key = `${AcquisitionPlatform.Xhs}:${item.accountId}:${item.noteId}`
+      if (existingKeys.has(key)) {
+        skippedExisting += 1
+        continue
+      }
+
+      const unverifiedWorkLink = typeof item.record.linkMeta?.['unverifiedWorkLink'] === 'string'
+        ? item.record.linkMeta['unverifiedWorkLink']
+        : ''
+      const postUrl = this.tryExtractPostId(AcquisitionPlatform.Xhs, unverifiedWorkLink) === item.noteId
+        ? unverifiedWorkLink
+        : this.buildXhsBareWorkLink(item.noteId)
+      const publishTraceId = this.resolvePublishTraceId(item.record)
+
+      await this.monitoredPostRepository.upsertPublishedBackfillMonitor({
+        userId,
+        platform: AcquisitionPlatform.Xhs,
+        accountId: item.accountId,
+        postId: item.noteId,
+        postUrl,
+        title: item.record.title || '',
+        cover: item.record.coverUrl || item.record.imgUrlList?.[0] || '',
+        source: 'published_backfill',
+        monitorStatus: 'published',
+        fetchStatus: 'reviewing',
+        capabilityReason: 'XHS note is published but still under review or missing xsec_token',
+        authorUserId: '',
+        publishRecordId: item.publishRecordId,
+        publishTraceId,
+        linkStatus: item.record.linkStatus || 'pending',
+        linkError: item.record.linkError || '',
+      })
+      existingKeys.add(key)
+      created += 1
+    }
+
+    return {
+      scanned: records.length,
+      created,
+      skippedExisting,
+      skippedInvalid,
+    }
+  }
+
+  private isLikelyXhsNoteId(value?: string): boolean {
+    return !!value && /^[A-Za-z0-9]{20,40}$/.test(value) && !value.startsWith('req-')
+  }
+
+  private buildXhsBareWorkLink(noteId: string): string {
+    return `https://www.xiaohongshu.com/explore/${noteId}`
+  }
+
+  private resolvePublishTraceId(record: { dataId?: string; linkMeta?: Record<string, any> | null }): string {
+    const traceId = typeof record.linkMeta?.['traceId'] === 'string' ? record.linkMeta['traceId'] : ''
+    if (traceId) return traceId
+    return record.dataId?.startsWith('req-') ? record.dataId : ''
   }
 
   async updateStatus(userId: string, id: string, status: string) {

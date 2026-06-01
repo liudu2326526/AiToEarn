@@ -27,6 +27,11 @@ import { QueueConfig } from './queue.config'
 @Injectable()
 export class QueueService {
   private readonly defaultOptions: JobsOptions
+  private readonly xhsTokenRefreshMaxDispatchCount = 3
+
+  private getXhsTokenRefreshJobId(publishRecordId: string) {
+    return `xhs-token-${publishRecordId}`
+  }
 
   constructor(
     config: QueueConfig,
@@ -64,6 +69,8 @@ export class QueueService {
     private acquisitionSensitiveCheckQueue: Queue,
     @InjectQueue(QueueName.AcquisitionLeadReplyTask)
     private acquisitionLeadReplyTaskQueue: Queue,
+    @InjectQueue(QueueName.XhsTokenRefresh)
+    private xhsTokenRefreshQueue: Queue,
   ) {
     // 从配置中读取默认的 job options
     this.defaultOptions = config.jobOptions || {
@@ -244,5 +251,82 @@ export class QueueService {
       removeOnFail: 1000,
       ...options,
     })
+  }
+
+  /**
+   * 添加小红书 Token 刷新任务
+   */
+  async addXhsTokenRefreshJob(data: { publishRecordId: string; monitoredPostId?: string; userId: string; noteId: string; scanLatest?: boolean; publishTime?: number }, options?: JobsOptions) {
+    return await this.xhsTokenRefreshQueue.add('refresh-token', data, {
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 60000 },
+      jobId: this.getXhsTokenRefreshJobId(data.publishRecordId),
+      removeOnComplete: 100,
+      removeOnFail: 100,
+      ...options,
+    })
+  }
+
+  /**
+   * 获取待处理的小红书 Token 刷新任务
+   * 注意：不会立即移除任务，需要在成功处理后调用 removeXhsTokenRefreshJob
+   */
+  async getXhsTokenRefreshJobs(userId?: string, limit = 50): Promise<Array<{ publishRecordId: string; monitoredPostId?: string; userId: string; noteId: string; scanLatest?: boolean; publishTime?: number }>> {
+    const jobs = await this.xhsTokenRefreshQueue.getWaiting(0, limit - 1)
+    const matchedJobs = userId
+      ? jobs.filter(job => (job.data as { userId?: string }).userId === userId)
+      : jobs
+    const dispatchableJobs = matchedJobs.filter((job) => {
+      const data = job.data as { processingCount?: number }
+      return (data.processingCount || 0) < this.xhsTokenRefreshMaxDispatchCount
+    })
+
+    // 标记为处理中，但不删除任务
+    const now = Date.now()
+    await Promise.allSettled(dispatchableJobs.map(job =>
+      job.updateData({
+        ...job.data,
+        processingAt: now,
+        processingCount: ((job.data as any).processingCount || 0) + 1,
+      })
+    ))
+
+    return dispatchableJobs.map(job => job.data as { publishRecordId: string; monitoredPostId?: string; userId: string; noteId: string; scanLatest?: boolean; publishTime?: number })
+  }
+
+  /**
+   * 移除已完成的小红书 Token 刷新任务
+   */
+  async removeXhsTokenRefreshJob(publishRecordId: string): Promise<void> {
+    const jobId = this.getXhsTokenRefreshJobId(publishRecordId)
+    const job = await this.xhsTokenRefreshQueue.getJob(jobId)
+    if (job) {
+      await job.remove()
+    }
+  }
+
+  /**
+   * 清理超时的刷新任务（超过 10 分钟未完成的任务重新加入队列）
+   */
+  async cleanupStaleXhsTokenRefreshJobs(): Promise<number> {
+    const jobs = await this.xhsTokenRefreshQueue.getWaiting()
+    const now = Date.now()
+    const timeout = 10 * 60 * 1000 // 10 分钟
+    let cleanedCount = 0
+
+    for (const job of jobs) {
+      const data = job.data as any
+      if (data.processingAt && now - data.processingAt > timeout) {
+        // 超时任务重置处理状态
+        await job.updateData({
+          ...data,
+          processingAt: undefined,
+          processingCount: 0,
+        })
+        cleanedCount++
+      }
+    }
+
+    return cleanedCount
   }
 }

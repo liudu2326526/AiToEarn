@@ -1,6 +1,7 @@
 import { Storage } from "@plasmohq/storage";
 import type { PlasmoCSConfig } from "plasmo";
 import type { ExtensionExternalRequest, ExtensionExternalResponse } from "~types/external";
+import { isTrustedOrigin } from "~utils/trusted-origin";
 
 export const config: PlasmoCSConfig = {
   matches: ["<all_urls>"],
@@ -27,13 +28,7 @@ async function isOriginTrusted(origin: string, action: string): Promise<boolean>
 
   const trustedDomains = (await storage.get<Array<{ domain: string }>>("trustedDomains")) || [];
 
-  return trustedDomains.some(({ domain }) => {
-    if (domain.startsWith("*.")) {
-      const wildCardDomain = domain.slice(2);
-      return origin.endsWith(wildCardDomain);
-    }
-    return origin === domain;
-  });
+  return isTrustedOrigin(origin, trustedDomains);
 }
 
 window.addEventListener("message", async (event) => {

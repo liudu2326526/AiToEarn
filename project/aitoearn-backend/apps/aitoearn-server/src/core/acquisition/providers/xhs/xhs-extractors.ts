@@ -72,6 +72,21 @@ export const XHS_CAPTURE_NOTE_STATE_EXPRESSION = `
     return Math.round(numeric);
   };
 
+  const parseStandaloneCount = value => {
+    const text = String(value || '').replace(/,/g, '').replace(/\\s+/g, '').replace(/\\+/g, '').trim();
+    if (!/^\\d+(?:\\.\\d+)?(?:w|万|k|千)?$/i.test(text)) return 0;
+    return parseCount(text);
+  };
+
+  const parseActionCountText = (value, keywords) => {
+    let text = String(value || '').replace(/\\s+/g, '').trim();
+    if (!text || text.includes('前')) return 0;
+    for (const keyword of keywords) {
+      text = text.replaceAll(keyword, '');
+    }
+    return parseStandaloneCount(text);
+  };
+
   const readObjectValue = (source, keys) => {
     if (!source || typeof source !== 'object') return undefined;
     for (const key of keys) {
@@ -155,7 +170,8 @@ export const XHS_CAPTURE_NOTE_STATE_EXPRESSION = `
   const readDomActionCount = (keywords, selectors) => {
     for (const selector of selectors) {
       const el = document.querySelector(selector);
-      const count = parseCount(el?.textContent || '');
+      const text = el?.textContent || '';
+      const count = parseStandaloneCount(text) || parseActionCountText(text, keywords);
       if (count) return count;
     }
 
@@ -164,7 +180,7 @@ export const XHS_CAPTURE_NOTE_STATE_EXPRESSION = `
       const text = clean(el.innerText || el.textContent || '');
       if (!text || text.length > 40 || !keywords.some(keyword => text.includes(keyword))) continue;
 
-      const directCount = parseCount(text);
+      const directCount = parseActionCountText(text, keywords);
       if (directCount) return directCount;
 
       const nearby = [
@@ -173,7 +189,7 @@ export const XHS_CAPTURE_NOTE_STATE_EXPRESSION = `
         ...(el.parentElement ? Array.from(el.parentElement.children) : []),
       ];
       for (const item of nearby) {
-        const count = parseCount(item?.textContent || '');
+        const count = parseStandaloneCount(item?.textContent || '');
         if (count) return count;
       }
     }

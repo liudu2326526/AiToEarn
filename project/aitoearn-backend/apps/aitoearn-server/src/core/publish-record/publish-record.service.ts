@@ -350,6 +350,14 @@ export class PublishRecordService {
   }
 
   /**
+   * 根据插件 traceId 获取当前用户的发布记录。
+   * MultiPost 最终回调可能发生在页面刷新后，此时前端拿不到发布记录ID。
+   */
+  async getOneByTraceId(userId: string, traceId: string) {
+    return this.publishRecordRepository.findOneByUserAndTraceId(userId, traceId)
+  }
+
+  /**
    * 根据作品ID和UID获取单条发布记录
    * @param dataId 作品ID
    * @param uid 用户UID

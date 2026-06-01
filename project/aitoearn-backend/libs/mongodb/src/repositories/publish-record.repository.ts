@@ -9,7 +9,7 @@ import { Injectable } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import { AccountType, POST_DATA_UNAVAILABLE_WORK_STATUSES, WorkStatus } from '@yikart/common'
 import { Model, RootFilterQuery } from 'mongoose'
-import { PublishRecordSource, PublishStatus, PublishType } from '../enums'
+import { PublishRecordLinkStatus, PublishRecordSource, PublishStatus, PublishType } from '../enums'
 import { PublishDayInfo, PublishInfo, PublishRecord } from '../schemas'
 import { BaseRepository } from './base.repository'
 
@@ -529,6 +529,69 @@ export class PublishRecordRepository extends BaseRepository<PublishRecord> {
     return await this.publishRecordModel.findOne({ dataId, accountType }).lean({ virtuals: true }).exec()
   }
 
+  async findOneByUserAndTraceId(userId: string, traceId: string) {
+    return await this.publishRecordModel.findOne({
+      userId,
+      $or: [
+        { dataId: traceId },
+        { 'linkMeta.traceId': traceId },
+      ],
+    }).sort({ createdAt: -1 }).lean({ virtuals: true }).exec()
+  }
+
+  async listPendingXhsMultiPostRecords(
+    userId: string,
+    query: {
+      page: number
+      pageSize: number
+      platform?: string
+      keyword?: string
+    },
+  ): Promise<[PublishRecord[], number]> {
+    if (query.platform && query.platform !== 'xhs') {
+      return [[], 0]
+    }
+
+    const filter: RootFilterQuery<PublishRecord> = {
+      userId,
+      accountType: 'xhs',
+      status: { $in: [PublishStatus.PUBLISHED, PublishStatus.PUBLISHING] },
+      linkStatus: PublishRecordLinkStatus.PENDING,
+      'linkMeta.provider': 'multipost',
+      'linkMeta.pendingConfirmation': true,
+    }
+
+    if (query.keyword) {
+      filter.$or = [
+        { title: { $regex: query.keyword, $options: 'i' } },
+        { dataId: { $regex: query.keyword, $options: 'i' } },
+        { workLink: { $regex: query.keyword, $options: 'i' } },
+        { 'linkMeta.unverifiedWorkLink': { $regex: query.keyword, $options: 'i' } },
+      ]
+    }
+
+    const skip = (query.page - 1) * query.pageSize
+    return await Promise.all([
+      this.publishRecordModel.find(filter).sort({ updatedAt: -1, createdAt: -1 }).skip(skip).limit(query.pageSize).lean({ virtuals: true }).exec(),
+      this.publishRecordModel.countDocuments(filter).exec(),
+    ])
+  }
+
+  async listXhsPendingRecordsWithRealNoteIdForMonitorBackfill(userId: string, limit = 100): Promise<PublishRecord[]> {
+    return await this.publishRecordModel.find({
+      userId,
+      accountType: 'xhs',
+      status: { $in: [PublishStatus.PUBLISHED, PublishStatus.PUBLISHING] },
+      linkStatus: PublishRecordLinkStatus.PENDING,
+      'linkMeta.pendingConfirmation': true,
+      dataId: /^(?!req-)[A-Za-z0-9]{20,40}$/,
+    })
+      .sort({ updatedAt: -1, createdAt: -1 })
+      .limit(limit)
+      .lean({ virtuals: true })
+      .exec()
+  }
+
   async complete(id: string, dataId: string, data?: {
     workLink: string
     dataOption?: Record<string, any>
@@ -705,5 +768,40 @@ export class PublishRecordRepository extends BaseRepository<PublishRecord> {
 
   async getPublishTaskInfoWithUserId(id: string, userId: string) {
     return await this.publishRecordModel.findOne({ _id: id, userId }).lean({ virtuals: true }).exec()
+  }
+
+  /**
+   * 查询待审核的小红书发布记录
+   */
+  async listPendingXhsRecords(limit = 50): Promise<Array<{
+    id: string
+    userId: string
+    accountId?: string
+    accountType: string
+    dataId?: string
+    workLink?: string
+    linkMeta?: any
+  }>> {
+    const records = await this.publishRecordModel.find({
+      accountType: 'xhs',
+      linkStatus: PublishRecordLinkStatus.PENDING,
+      'linkMeta.pendingConfirmation': true,
+      // 只查询最近 7 天的记录
+      createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+    })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean({ virtuals: true })
+      .exec()
+
+    return records.map(r => ({
+      id: r._id.toString(),
+      userId: r.userId,
+      accountId: r.accountId,
+      accountType: r.accountType,
+      dataId: r.dataId,
+      workLink: r.workLink,
+      linkMeta: r.linkMeta,
+    }))
   }
 }

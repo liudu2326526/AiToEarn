@@ -3,8 +3,8 @@ import { DEFAULT_SCHEMA_OPTIONS } from '../channel-db.constants'
 import { BaseTemp } from './time.tamp'
 
 export type MonitoredPostSource = 'manual' | 'published_backfill' | 'demo_seed'
-export type MonitoredPostStatus = 'active' | 'paused' | 'failed' | 'archived'
-export type MonitoredPostFetchStatus = 'idle' | 'fetching' | 'ready' | 'failed' | 'permission_required' | 'not_configured' | 'pending_confirmation'
+export type MonitoredPostStatus = 'active' | 'published' | 'paused' | 'failed' | 'archived'
+export type MonitoredPostFetchStatus = 'idle' | 'fetching' | 'ready' | 'failed' | 'permission_required' | 'not_configured' | 'pending_confirmation' | 'reviewing'
 
 @Schema({ ...DEFAULT_SCHEMA_OPTIONS, collection: 'monitored_post' })
 export class MonitoredPost extends BaseTemp {
@@ -72,6 +72,18 @@ export class MonitoredPost extends BaseTemp {
 
   @Prop({ type: String, default: '' })
   lastFetchBatch: string
+
+  @Prop({ type: String, default: '', index: true })
+  publishRecordId: string
+
+  @Prop({ type: String, default: '', index: true })
+  publishTraceId: string
+
+  @Prop({ type: String, default: '' })
+  linkStatus: string
+
+  @Prop({ type: String, default: '' })
+  linkError: string
 }
 
 export const MonitoredPostSchema = SchemaFactory.createForClass(MonitoredPost)

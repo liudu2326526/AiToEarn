@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Table, Space, Button, Tag, Tooltip, Image, message, Popconfirm } from 'antd'
 import {
   CommentOutlined,
@@ -10,11 +10,13 @@ import {
   ShareAltOutlined,
   StarOutlined,
   SyncOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons'
 import { useTransClient } from '@/app/i18n/client'
 import { useParams } from 'next/navigation'
 import type { MonitoredPostItem } from '@/api/workData'
 import { deleteMonitoredPost, fetchMonitoredPost, updateMonitoredPostStatus } from '@/api/workData'
+import { refreshXhsToken } from '@/api/plat/publish'
 import dayjs from 'dayjs'
 
 interface MonitoredPostTableProps {
@@ -40,6 +42,7 @@ const MonitoredPostTable: React.FC<MonitoredPostTableProps> = ({
 }) => {
   const { lng } = useParams()
   const { t } = useTransClient('route')
+  const [refreshingId, setRefreshingId] = useState<string | null>(null)
 
   const handleFetch = async (id: string) => {
     try {
@@ -51,7 +54,34 @@ const MonitoredPostTable: React.FC<MonitoredPostTableProps> = ({
     }
   }
 
+  const handleRefreshToken = async (record: MonitoredPostItem) => {
+    if (!record.publishRecordId) {
+      message.error(t('workData.tokenRefreshMissingRecord'))
+      return
+    }
+    setRefreshingId(record.id)
+    try {
+      const response = await refreshXhsToken(record.publishRecordId)
+      if (!response) {
+        message.error('刷新失败，请稍后重试')
+      } else if (response.code === 0) {
+        message.success('刷新请求已发送，请稍候...')
+        // 30 秒后刷新列表
+        setTimeout(() => {
+          onRefresh()
+        }, 30000)
+      } else {
+        message.error(response.message || '刷新失败')
+      }
+    } catch (error: any) {
+      message.error(error.message || '刷新失败，请稍后重试')
+    } finally {
+      setRefreshingId(null)
+    }
+  }
+
   const handleToggleStatus = async (record: MonitoredPostItem) => {
+    if (isTokenBackfillPending(record)) return
     const nextStatus = record.monitorStatus === 'active' ? 'paused' : 'active'
     try {
       await updateMonitoredPostStatus(record.id, nextStatus)
@@ -62,9 +92,9 @@ const MonitoredPostTable: React.FC<MonitoredPostTableProps> = ({
     }
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (record: MonitoredPostItem) => {
     try {
-      await deleteMonitoredPost(id)
+      await deleteMonitoredPost(record.id)
       message.success(t('workData.deleteSuccess'))
       onRefresh()
     } catch (error: any) {
@@ -74,7 +104,15 @@ const MonitoredPostTable: React.FC<MonitoredPostTableProps> = ({
 
   const shouldIgnoreRowClick = (target: EventTarget | null) => {
     if (!(target instanceof HTMLElement)) return false
-    return Boolean(target.closest('a, button, .ant-btn, .ant-dropdown-trigger, .ant-pagination, .ant-select'))
+    return Boolean(target.closest('a, button, [role="button"], .ant-btn, .ant-dropdown-trigger, .ant-pagination, .ant-select, .ant-popover, .ant-tooltip'))
+  }
+
+  const isTokenBackfillPending = (record: MonitoredPostItem) => {
+    return record.fetchStatus === 'reviewing' || record.fetchStatus === 'pending_confirmation'
+  }
+
+  const stopRowActionPropagation = (event: React.MouseEvent | React.KeyboardEvent) => {
+    event.stopPropagation()
   }
 
   const metricItems = [
@@ -123,15 +161,19 @@ const MonitoredPostTable: React.FC<MonitoredPostTableProps> = ({
             >
               {record.title || t('workData.noTitle')}
             </div>
-            <a
-              href={record.postUrl}
-              target="_blank"
-              rel="noreferrer"
-              style={{ fontSize: 12, color: '#6b7b8c' }}
-              onClick={event => event.stopPropagation()}
-            >
-              {record.postId}
-            </a>
+            {record.postUrl ? (
+              <a
+                href={record.postUrl}
+                target="_blank"
+                rel="noreferrer"
+                style={{ fontSize: 12, color: '#6b7b8c' }}
+                onClick={event => event.stopPropagation()}
+              >
+                {record.postId || t('workData.waitingNoteId')}
+              </a>
+            ) : (
+              <span style={{ fontSize: 12, color: '#6b7b8c' }}>{record.postId || t('workData.waitingNoteId')}</span>
+            )}
           </div>
         </Space>
       ),
@@ -167,6 +209,7 @@ const MonitoredPostTable: React.FC<MonitoredPostTableProps> = ({
       render: (status: string) => {
         const colorMap: Record<string, string> = {
           active: 'success',
+          published: 'processing',
           paused: 'default',
           failed: 'error',
           archived: 'warning',
@@ -181,7 +224,7 @@ const MonitoredPostTable: React.FC<MonitoredPostTableProps> = ({
       width: 120,
       render: (status: string, record: MonitoredPostItem) => (
         <Tooltip title={record.capabilityReason}>
-          <Tag color={status === 'ready' ? 'blue' : status === 'fetching' ? 'processing' : status === 'failed' ? 'error' : 'default'} style={{ borderRadius: 999 }}>
+          <Tag color={status === 'ready' ? 'blue' : status === 'fetching' ? 'processing' : status === 'reviewing' ? 'warning' : status === 'failed' ? 'error' : 'default'} style={{ borderRadius: 999 }}>
             {t(`workData.fetchStatus.${status}`)}
           </Tag>
         </Tooltip>
@@ -243,19 +286,30 @@ const MonitoredPostTable: React.FC<MonitoredPostTableProps> = ({
       fixed: 'right' as const,
       width: 168,
       render: (_: any, record: MonitoredPostItem) => (
-        <Space size={4}>
+        <Space size={4} onClick={stopRowActionPropagation} onKeyDown={stopRowActionPropagation}>
+          {/* 小红书审核中的作品显示获取令牌按钮 */}
+          {record.platform === 'xhs' && isTokenBackfillPending(record) && (
+            <Tooltip title="尝试自动获取访问令牌">
+              <Button
+                type="text"
+                icon={<ReloadOutlined spin={refreshingId === record.id} />}
+                onClick={() => handleRefreshToken(record)}
+                disabled={refreshingId === record.id}
+              />
+            </Tooltip>
+          )}
           <Tooltip title={t('workData.actions.fetch')}>
             <Button
               type="text"
               icon={<SyncOutlined spin={record.fetchStatus === 'fetching'} />}
               onClick={() => handleFetch(record.id)}
-              disabled={record.fetchStatus === 'fetching'}
+              disabled={record.fetchStatus === 'fetching' || isTokenBackfillPending(record)}
             />
           </Tooltip>
           <Tooltip title={t('workData.actions.detail')}>
             <Button type="text" icon={<EyeOutlined />} onClick={() => onViewDetail(record)} />
           </Tooltip>
-          {record.monitorStatus === 'active' ? (
+          {isTokenBackfillPending(record) ? null : record.monitorStatus === 'active' ? (
             <Tooltip title={t('workData.actions.pause')}>
               <Button type="text" icon={<PauseCircleOutlined />} onClick={() => handleToggleStatus(record)} />
             </Tooltip>
@@ -268,7 +322,7 @@ const MonitoredPostTable: React.FC<MonitoredPostTableProps> = ({
             title={t('workData.deleteConfirm')}
             okText={t('workData.deleteOk')}
             cancelText={t('workData.deleteCancel')}
-            onConfirm={() => handleDelete(record.id)}
+            onConfirm={() => handleDelete(record)}
           >
             <Tooltip title={t('workData.actions.delete')}>
               <Button type="text" danger icon={<DeleteOutlined />} />

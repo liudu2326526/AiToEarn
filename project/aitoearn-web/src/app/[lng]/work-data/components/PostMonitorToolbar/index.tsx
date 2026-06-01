@@ -43,6 +43,7 @@ const PostMonitorToolbar: React.FC<PostMonitorToolbarProps> = ({ onSearch, onAdd
           onChange={(v) => onSearch({ monitorStatus: v })}
         >
           <Select.Option value="active">{t('workData.status.active')}</Select.Option>
+          <Select.Option value="published">{t('workData.status.published')}</Select.Option>
           <Select.Option value="paused">{t('workData.status.paused')}</Select.Option>
           <Select.Option value="failed">{t('workData.status.failed')}</Select.Option>
           <Select.Option value="archived">{t('workData.status.archived')}</Select.Option>

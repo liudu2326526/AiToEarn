@@ -12,6 +12,8 @@ describe('WorkDataService', () => {
     getByIdAndUser: vi.fn(),
     getByIdentity: vi.fn(),
     findLatestAuthorUserIdByAccount: vi.fn(),
+    findByUserPostIdentities: vi.fn(),
+    upsertPublishedBackfillMonitor: vi.fn(),
     deleteByIdAndUser: vi.fn(),
   }
   const monitoredPostFetchLogRepository = {
@@ -38,6 +40,12 @@ describe('WorkDataService', () => {
     fetchNow: vi.fn(),
     refreshTokens: vi.fn(),
   }
+  const publishRecordRepository = {
+    listXhsPendingRecordsWithRealNoteIdForMonitorBackfill: vi.fn(),
+  }
+  const leadMaterializationService = {
+    materialize: vi.fn(),
+  }
 
   beforeEach(() => {
     vi.useRealTimers()
@@ -51,6 +59,8 @@ describe('WorkDataService', () => {
       accountOpsConfigRepository as any,
       accountRepository as any,
       acquisitionService as any,
+      publishRecordRepository as any,
+      leadMaterializationService as any,
     )
   })
 
@@ -154,6 +164,84 @@ describe('WorkDataService', () => {
       authorUserId: 'author-1',
       source: 'published_backfill',
     }))
+  })
+
+  it('backfills historical pending xhs publish records with real note ids into monitored posts', async () => {
+    publishRecordRepository.listXhsPendingRecordsWithRealNoteIdForMonitorBackfill.mockResolvedValue([
+      {
+        id: 'publish-1',
+        userId: 'user-1',
+        accountId: 'xhs_multipost-rednote_web',
+        accountType: 'xhs',
+        dataId: '6a1d25280000000007028785',
+        title: '山的那边是什么',
+        coverUrl: '',
+        imgUrlList: ['https://assets.example/cover.png'],
+        linkStatus: 'pending',
+        linkMeta: {
+          traceId: 'req-1780294930951-5dg5oosr',
+          pendingConfirmation: true,
+          unverifiedWorkLink: 'https://www.xiaohongshu.com/explore/6a1d25280000000007028785',
+        },
+      },
+    ])
+    monitoredPostRepository.findByUserPostIdentities.mockResolvedValue([])
+    monitoredPostRepository.upsertPublishedBackfillMonitor.mockResolvedValue({
+      id: 'monitored-1',
+      postId: '6a1d25280000000007028785',
+    })
+
+    const result = await service.backfillHistoricalXhsPublishedMonitors('user-1')
+
+    expect(result).toEqual({
+      scanned: 1,
+      created: 1,
+      skippedExisting: 0,
+      skippedInvalid: 0,
+    })
+    expect(monitoredPostRepository.upsertPublishedBackfillMonitor).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'user-1',
+      platform: 'xhs',
+      accountId: 'xhs_multipost-rednote_web',
+      postId: '6a1d25280000000007028785',
+      postUrl: 'https://www.xiaohongshu.com/explore/6a1d25280000000007028785',
+      source: 'published_backfill',
+      monitorStatus: 'published',
+      fetchStatus: 'reviewing',
+      title: '山的那边是什么',
+      cover: 'https://assets.example/cover.png',
+      publishRecordId: 'publish-1',
+      publishTraceId: 'req-1780294930951-5dg5oosr',
+      linkStatus: 'pending',
+    }))
+  })
+
+  it('does not backfill historical xhs records that already have a monitored post', async () => {
+    publishRecordRepository.listXhsPendingRecordsWithRealNoteIdForMonitorBackfill.mockResolvedValue([
+      {
+        id: 'publish-1',
+        userId: 'user-1',
+        accountId: 'account-1',
+        accountType: 'xhs',
+        dataId: '6a1d25280000000007028785',
+        linkStatus: 'pending',
+        linkMeta: {},
+      },
+    ])
+    monitoredPostRepository.findByUserPostIdentities.mockResolvedValue([
+      {
+        id: 'monitored-1',
+        platform: 'xhs',
+        accountId: 'account-1',
+        postId: '6a1d25280000000007028785',
+      },
+    ])
+
+    const result = await service.backfillHistoricalXhsPublishedMonitors('user-1')
+
+    expect(result.created).toBe(0)
+    expect(result.skippedExisting).toBe(1)
+    expect(monitoredPostRepository.upsertPublishedBackfillMonitor).not.toHaveBeenCalled()
   })
 
   it('stores xhs token metadata from a published backfill url and ignores virtual multipost uid', async () => {

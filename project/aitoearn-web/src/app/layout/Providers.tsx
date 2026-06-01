@@ -21,6 +21,7 @@ import { toast } from '@/lib/toast'
 import { useAccountStore } from '@/store'
 import { useUserStore } from '@/store/user'
 import { isPublicPage } from '@/utils/route'
+import { useXhsTokenRefresh } from '@/hooks/useXhsTokenRefresh'
 
 export function Providers({ children, lng, autoLoginToken }: { children: React.ReactNode, lng: string, autoLoginToken?: string }) {
   const pathname = usePathname()
@@ -146,6 +147,9 @@ export function Providers({ children, lng, autoLoginToken }: { children: React.R
       document.body.appendChild = originalAppendChild
     }
   }, [lng])
+
+  // 启动小红书 Token 自动刷新轮询
+  useXhsTokenRefresh()
 
   return (
     <>

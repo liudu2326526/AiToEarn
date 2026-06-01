@@ -325,19 +325,23 @@ export const usePluginStore = create(
             success: boolean
             workLink?: string
             workId?: string
+            authorUserId?: string
+            xsecToken?: string
+            xsecSource?: string
             pendingConfirmation?: boolean
             error?: string
           }
           const recordId = get().multiPostRecordMap.get(result.traceId)
-          if (!recordId)
-            return
 
           try {
             await updatePluginPublishResultApi({
-              id: recordId,
+              ...(recordId ? { id: recordId } : { traceId: result.traceId }),
               success: result.success,
               dataId: result.workId || result.traceId,
               workLink: result.workLink,
+              authorUserId: result.authorUserId,
+              xsecToken: result.xsecToken,
+              xsecSource: result.xsecSource,
               pendingConfirmation: result.pendingConfirmation,
               errorMsg: result.error,
             })

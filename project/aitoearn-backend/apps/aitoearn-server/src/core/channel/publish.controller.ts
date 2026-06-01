@@ -10,6 +10,7 @@ import { ApiTags } from '@nestjs/swagger'
 import { GetToken, Public, TokenInfo } from '@yikart/aitoearn-auth'
 import { QueueService } from '@yikart/aitoearn-queue'
 import { AssetsService } from '@yikart/assets'
+import { MonitoredPostRepository } from '@yikart/channel-db'
 import { ApiDoc, AppException, ParseObjectIdPipe, ResponseCode, TableDto } from '@yikart/common'
 import { MetricEventHelperService, MetricEventName } from '@yikart/helpers'
 import { PublishRecordLinkStatus, PublishStatus, PublishType } from '@yikart/mongodb'
@@ -28,6 +29,7 @@ import {
   UpdatePublishRecordTimeDto,
   UpdatePublishRecordWorkLinkDto,
   UpdatePublishTaskDto,
+  UpdateTokenFromPluginDto,
 } from './publish.dto'
 import { PublishService } from './publish.service'
 import { PublishingService } from './publishing/publishing.service'
@@ -47,6 +49,7 @@ export class PublishController {
     private readonly platformService: PlatformService,
     private readonly metricEventHelperService: MetricEventHelperService,
     private readonly queueService: QueueService,
+    private readonly monitoredPostRepository: MonitoredPostRepository,
   ) { }
 
   @ApiDoc({
@@ -165,34 +168,72 @@ export class PublishController {
   @Post('pluginResult')
   async updatePluginPublishResult(@GetToken() token: TokenInfo, @Body() data: UpdatePluginPublishResultDto) {
     data = plainToInstance(UpdatePluginPublishResultDto, data)
-    const publishRecord = await this.publishRecordService.getPublishRecordInfo(data.id)
+    const publishRecord = data.id
+      ? await this.publishRecordService.getPublishRecordInfo(data.id)
+      : data.traceId
+        ? await this.publishRecordService.getOneByTraceId(token.id, data.traceId)
+        : null
     if (!publishRecord || publishRecord.userId !== token.id) {
+      throw new AppException(ResponseCode.PublishRecordNotFound)
+    }
+    const publishRecordId = publishRecord.id || data.id || (publishRecord as any)._id?.toString()
+    if (!publishRecordId) {
       throw new AppException(ResponseCode.PublishRecordNotFound)
     }
 
     if (!data.success) {
-      return this.publishRecordService.failById(data.id, data.errorMsg || 'plugin publish failed')
+      return this.publishRecordService.failById(publishRecordId, data.errorMsg || 'plugin publish failed')
     }
 
-    const finalDataId = data.dataId || publishRecord.dataId || data.id
+    const finalDataId = data.noteId || data.dataId || publishRecord.dataId || data.traceId || publishRecordId
 
     if (data.pendingConfirmation || !data.workLink) {
-      await this.publishRecordService.updateStatusById(data.id, PublishStatus.PUBLISHING)
-      return this.publishRecordService.updateWorkLinkById(data.id, {
-        dataId: finalDataId,
+      const pendingXhsWorkLinkMeta = data.workLink ? this.extractXhsWorkLinkMeta(data.workLink) : {}
+      const pendingNoteId = this.resolveXhsNoteIdFromPayload(data, publishRecord)
+      const pendingLinkMeta = {
+        ...(publishRecord.linkMeta || {}),
+        pendingConfirmation: true,
+        ...(data.workLink && {
+          unverifiedWorkLink: data.workLink,
+          missingXsecToken: this.isXhsBareWorkLink(
+            publishRecord.accountType,
+            data.workLink,
+            data.xsecToken,
+            pendingXhsWorkLinkMeta.xsecToken,
+          ),
+        }),
+      }
+      await this.upsertXhsPublishedBackfillMonitor(publishRecord, publishRecordId, {
+        noteId: pendingNoteId,
+        workLink: data.workLink,
+        authorUserId: data.authorUserId,
+        xsecToken: data.xsecToken || pendingXhsWorkLinkMeta.xsecToken,
+        xsecSource: data.xsecSource,
+        fetchStatus: data.workLink ? 'reviewing' : 'pending_confirmation',
         linkStatus: PublishRecordLinkStatus.PENDING,
-        linkMeta: {
-          ...(publishRecord.linkMeta || {}),
-          pendingConfirmation: true,
-        },
+      })
+      await this.publishRecordService.updateStatusById(publishRecordId, PublishStatus.PUBLISHING)
+      return this.publishRecordService.updateWorkLinkById(publishRecordId, {
+        dataId: pendingNoteId || pendingXhsWorkLinkMeta.postId || finalDataId,
+        linkStatus: PublishRecordLinkStatus.PENDING,
+        linkMeta: pendingLinkMeta,
       })
     }
 
     const xhsWorkLinkMeta = this.extractXhsWorkLinkMeta(data.workLink)
     if (this.isXhsBareWorkLink(publishRecord.accountType, data.workLink, data.xsecToken, xhsWorkLinkMeta.xsecToken)) {
-      await this.publishRecordService.updateStatusById(data.id, PublishStatus.PUBLISHING)
-      return this.publishRecordService.updateWorkLinkById(data.id, {
-        dataId: xhsWorkLinkMeta.postId || finalDataId,
+      const noteId = this.resolveXhsNoteIdFromPayload(data, publishRecord)
+      await this.upsertXhsPublishedBackfillMonitor(publishRecord, publishRecordId, {
+        noteId,
+        workLink: data.workLink,
+        authorUserId: data.authorUserId,
+        fetchStatus: 'pending_confirmation',
+        linkStatus: PublishRecordLinkStatus.PENDING,
+        linkError: 'XHS xsec_token is not available yet',
+      })
+      await this.publishRecordService.updateStatusById(publishRecordId, PublishStatus.PUBLISHING)
+      return this.publishRecordService.updateWorkLinkById(publishRecordId, {
+        dataId: noteId || xhsWorkLinkMeta.postId || finalDataId,
         linkStatus: PublishRecordLinkStatus.PENDING,
         linkError: 'XHS xsec_token is not available yet',
         linkMeta: {
@@ -205,6 +246,15 @@ export class PublishController {
     }
 
     // 有 workLink：先入监控(审核中链接暂不可访问也先记录，等审核通过后再抓取数据)
+    await this.upsertXhsPublishedBackfillMonitor(publishRecord, publishRecordId, {
+      noteId: this.resolveXhsNoteIdFromPayload(data, publishRecord),
+      workLink: data.workLink,
+      authorUserId: data.authorUserId,
+      xsecToken: data.xsecToken || xhsWorkLinkMeta.xsecToken,
+      xsecSource: data.xsecSource,
+      fetchStatus: 'idle',
+      linkStatus: PublishRecordLinkStatus.READY,
+    })
     const acquisitionPlatform = this.toAcquisitionPlatform(publishRecord.accountType)
     if (acquisitionPlatform && publishRecord.accountId && publishRecord.userId) {
       await this.queueService.addAcquisitionPostBackfillJob({
@@ -230,8 +280,8 @@ export class PublishController {
     catch (error) {
       // 审核中等场景链接暂不可访问：作品已入监控，发布记录标记 PENDING 等待后续校验
       this.logger.warn(`Plugin publish result has unverified work link: ${data.workLink}`)
-      await this.publishRecordService.updateStatusById(data.id, PublishStatus.PUBLISHING)
-      return this.publishRecordService.updateWorkLinkById(data.id, {
+      await this.publishRecordService.updateStatusById(publishRecordId, PublishStatus.PUBLISHING)
+      return this.publishRecordService.updateWorkLinkById(publishRecordId, {
         dataId: finalDataId,
         workLink: data.workLink,
         linkStatus: PublishRecordLinkStatus.PENDING,
@@ -248,11 +298,162 @@ export class PublishController {
     })
   }
 
+  @ApiDoc({
+    summary: '从插件更新小红书作品 token',
+    body: UpdateTokenFromPluginDto.schema,
+  })
+  @Post('updateTokenFromPlugin')
+  async updateTokenFromPlugin(@GetToken() token: TokenInfo, @Body() data: UpdateTokenFromPluginDto) {
+    data = plainToInstance(UpdateTokenFromPluginDto, data)
+
+    const publishRecord = await this.publishRecordService.getPublishRecordInfo(data.publishRecordId)
+    if (!publishRecord || publishRecord.userId !== token.id) {
+      throw new AppException(ResponseCode.PublishRecordNotFound)
+    }
+
+    this.logger.log(`[updateTokenFromPlugin] Updating token for note ${data.noteId}`)
+
+    // 更新 publish_record
+    await this.publishRecordService.updateWorkLinkById(data.publishRecordId, {
+      dataId: data.noteId,
+      workLink: data.workLink,
+      linkStatus: PublishRecordLinkStatus.READY,
+      linkMeta: {
+        ...(publishRecord.linkMeta || {}),
+        pendingConfirmation: false,
+        tokenAutoRefreshed: true,
+        tokenRefreshedAt: new Date(),
+      },
+    })
+
+    // 更新 monitored_post 并开始抓取数据
+    await this.upsertXhsPublishedBackfillMonitor(publishRecord, data.publishRecordId, {
+      noteId: data.noteId,
+      workLink: data.workLink,
+      authorUserId: data.authorUserId,
+      xsecToken: data.xsecToken,
+      xsecSource: data.xsecSource,
+      fetchStatus: 'idle',
+      linkStatus: PublishRecordLinkStatus.READY,
+    })
+
+    const acquisitionPlatform = this.toAcquisitionPlatform(publishRecord.accountType)
+    if (acquisitionPlatform && publishRecord.accountId && publishRecord.userId) {
+      await this.queueService.addAcquisitionPostBackfillJob({
+        userId: publishRecord.userId,
+        accountId: publishRecord.accountId,
+        platform: acquisitionPlatform,
+        postUrl: data.workLink,
+        authorUserId: data.authorUserId,
+        xsecToken: data.xsecToken,
+        xsecSource: data.xsecSource,
+      })
+    }
+
+    // 成功处理后移除刷新任务
+    await this.queueService.removeXhsTokenRefreshJob(data.publishRecordId)
+
+    this.logger.log(`[updateTokenFromPlugin] Token updated successfully for note ${data.noteId}`)
+    return { success: true }
+  }
+
+  @ApiDoc({
+    summary: '手动刷新小红书作品 token',
+  })
+  @Post('refreshXhsToken/:id')
+  async refreshXhsToken(@GetToken() token: TokenInfo, @Param('id') id: string) {
+    const publishRecord = await this.publishRecordService.getPublishRecordInfo(id)
+    if (!publishRecord || publishRecord.userId !== token.id) {
+      throw new AppException(ResponseCode.PublishRecordNotFound)
+    }
+    if (publishRecord.accountType !== 'xhs') {
+      throw new AppException(ResponseCode.PublishTaskInvalid, 'Only XHS records can be refreshed')
+    }
+
+    const noteId = this.resolveXhsNoteId(publishRecord)
+    const monitoredPost = noteId && publishRecord.accountId
+      ? await this.monitoredPostRepository.getByIdentity(token.id, 'xhs', publishRecord.accountId, noteId)
+      : null
+
+    // 即使没有 noteId，也加入队列，让扩展去笔记管理页面扫描最新笔记
+    // 扩展会按发布时间匹配并提取 token
+    await this.queueService.addXhsTokenRefreshJob({
+      publishRecordId: id,
+      monitoredPostId: monitoredPost?.id || (monitoredPost as any)?._id?.toString(),
+      userId: token.id,
+      noteId: noteId || '',
+      // 当 noteId 缺失时，让扩展扫描最新笔记
+      scanLatest: !noteId,
+      publishTime: publishRecord.createdAt?.getTime() || Date.now(),
+    })
+    return { success: true }
+  }
+
+  @ApiDoc({
+    summary: '获取小红书 token 刷新任务列表',
+  })
+  @Get('xhsTokenRefreshJobs')
+  async getXhsTokenRefreshJobs(@GetToken() token: TokenInfo) {
+    return this.queueService.getXhsTokenRefreshJobs(token.id)
+  }
+
+  private async upsertXhsPublishedBackfillMonitor(
+    publishRecord: any,
+    publishRecordId: string,
+    data: {
+      noteId?: string | null
+      workLink?: string
+      authorUserId?: string
+      xsecToken?: string
+      xsecSource?: string
+      fetchStatus: 'reviewing' | 'pending_confirmation' | 'idle' | 'ready' | 'failed'
+      linkStatus: PublishRecordLinkStatus
+      linkError?: string
+    },
+  ) {
+    if (publishRecord.accountType !== 'xhs' || !publishRecord.userId || !publishRecord.accountId) return
+    if (!this.isLikelyXhsNoteId(data.noteId || undefined)) return
+
+    const xhsWorkLinkMeta = data.workLink ? this.extractXhsWorkLinkMeta(data.workLink) : {}
+    const xsecToken = data.xsecToken || xhsWorkLinkMeta.xsecToken || ''
+    const postUrl = data.workLink || this.buildXhsBareWorkLink(data.noteId!)
+    const publishTraceId = this.resolvePublishTraceId(publishRecord)
+    const cover = publishRecord.coverUrl || publishRecord.imgUrlList?.[0] || ''
+
+    await this.monitoredPostRepository.upsertPublishedBackfillMonitor({
+      userId: publishRecord.userId,
+      platform: 'xhs',
+      accountId: publishRecord.accountId,
+      postId: data.noteId!,
+      postUrl,
+      title: publishRecord.title || '',
+      cover,
+      source: 'published_backfill',
+      monitorStatus: data.linkStatus === PublishRecordLinkStatus.READY ? 'active' : 'published',
+      fetchStatus: data.fetchStatus,
+      capabilityReason: data.linkStatus === PublishRecordLinkStatus.READY
+        ? ''
+        : (data.linkError || 'XHS note is published but still under review or missing xsec_token'),
+      authorUserId: data.authorUserId || '',
+      xsecToken,
+      xsecSource: data.xsecSource || (xsecToken ? 'pc_user' : ''),
+      ...(xsecToken ? { xsecTokenUpdatedAt: new Date() } : {}),
+      publishRecordId,
+      publishTraceId,
+      linkStatus: data.linkStatus,
+      linkError: data.linkError || '',
+    })
+  }
+
   private toAcquisitionPlatform(accountType: unknown): 'xhs' | 'douyin' | 'kwai' | null {
     if (accountType === 'xhs') return 'xhs'
     if (accountType === 'douyin') return 'douyin'
     if (accountType === 'KWAI' || accountType === 'kwai') return 'kwai'
     return null
+  }
+
+  private buildXhsBareWorkLink(noteId: string): string {
+    return `https://www.xiaohongshu.com/explore/${noteId}`
   }
 
   private extractXhsWorkLinkMeta(workLink: string): { postId?: string; xsecToken?: string } {
@@ -277,6 +478,41 @@ export class PublishController {
     const meta = this.extractXhsWorkLinkMeta(workLink)
     if (!meta.postId) return false
     return !payloadToken?.trim() && !urlToken?.trim() && !meta.xsecToken
+  }
+
+  private resolveXhsNoteId(record: { dataId?: string; workLink?: string; linkMeta?: Record<string, unknown> | null }): string | null {
+    if (this.isLikelyXhsNoteId(record.dataId)) return record.dataId!
+
+    const workLinkNoteId = record.workLink ? this.extractXhsWorkLinkMeta(record.workLink).postId : undefined
+    if (this.isLikelyXhsNoteId(workLinkNoteId)) return workLinkNoteId!
+
+    const unverifiedWorkLink = typeof record.linkMeta?.['unverifiedWorkLink'] === 'string'
+      ? record.linkMeta['unverifiedWorkLink']
+      : undefined
+    const unverifiedNoteId = unverifiedWorkLink ? this.extractXhsWorkLinkMeta(unverifiedWorkLink).postId : undefined
+    if (this.isLikelyXhsNoteId(unverifiedNoteId)) return unverifiedNoteId!
+
+    return null
+  }
+
+  private resolveXhsNoteIdFromPayload(data: UpdatePluginPublishResultDto, record: { dataId?: string; workLink?: string; linkMeta?: Record<string, unknown> | null }): string | null {
+    if (this.isLikelyXhsNoteId(data.noteId)) return data.noteId!
+    if (this.isLikelyXhsNoteId(data.dataId)) return data.dataId!
+
+    const payloadWorkLinkNoteId = data.workLink ? this.extractXhsWorkLinkMeta(data.workLink).postId : undefined
+    if (this.isLikelyXhsNoteId(payloadWorkLinkNoteId)) return payloadWorkLinkNoteId!
+
+    return this.resolveXhsNoteId(record)
+  }
+
+  private resolvePublishTraceId(record: { dataId?: string; linkMeta?: Record<string, unknown> | null }): string {
+    const traceId = typeof record.linkMeta?.['traceId'] === 'string' ? record.linkMeta['traceId'] : ''
+    if (traceId) return traceId
+    return record.dataId?.startsWith('req-') ? record.dataId : ''
+  }
+
+  private isLikelyXhsNoteId(value?: string): boolean {
+    return !!value && /^[A-Za-z0-9]{20,40}$/.test(value) && !value.startsWith('req-')
   }
 
   @ApiDoc({

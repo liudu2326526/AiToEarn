@@ -25,6 +25,12 @@ export class WorkDataController {
     return new MonitoredPostListVo(list, total, query)
   }
 
+  @ApiDoc({ summary: 'Backfill historical XHS published records into monitored posts' })
+  @Post('/monitored-posts/backfill-published')
+  async backfillPublished(@GetToken() token: TokenInfo) {
+    return await this.workDataService.backfillHistoricalXhsPublishedMonitors(token.id)
+  }
+
   @ApiDoc({ summary: 'Get monitored post detail', response: MonitoredPostVo })
   @Get('/monitored-posts/:id')
   async detail(@GetToken() token: TokenInfo, @Param('id') id: string) {

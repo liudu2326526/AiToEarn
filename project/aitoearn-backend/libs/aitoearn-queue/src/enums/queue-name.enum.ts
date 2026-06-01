@@ -52,4 +52,7 @@ export enum QueueName {
 
   /** 获客线索自动回复执行队列 */
   AcquisitionLeadReplyTask = 'acquisition_lead_reply_task',
+
+  /** 小红书 Token 刷新队列 */
+  XhsTokenRefresh = 'xhs_token_refresh',
 }

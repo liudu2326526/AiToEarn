@@ -37,10 +37,15 @@ export function updatePublishRecordLinkApi(data: UpdatePublishRecordLinkParams) 
 
 // 更新插件发布结果
 export function updatePluginPublishResultApi(data: {
-  id: string
+  id?: string
+  traceId?: string
   success: boolean
   dataId?: string
+  noteId?: string
   workLink?: string
+  authorUserId?: string
+  xsecToken?: string
+  xsecSource?: string
   pendingConfirmation?: boolean
   errorMsg?: string
 }) {
@@ -140,5 +145,26 @@ export function apiPubCreate(data: PublishParams) {
     url: 'plat/publish/pubCreate',
     method: 'POST',
     data,
+  })
+}
+
+// 手动刷新小红书作品 token
+export function refreshXhsToken(publishRecordId: string) {
+  return request<{ success: boolean }>({
+    url: `plat/publish/refreshXhsToken/${publishRecordId}`,
+    method: 'POST',
+  })
+}
+
+// 获取小红书 token 刷新任务列表
+export function getXhsTokenRefreshJobs() {
+  return request<Array<{
+    publishRecordId: string
+    monitoredPostId?: string
+    userId: string
+    noteId: string
+  }>>({
+    url: 'plat/publish/xhsTokenRefreshJobs',
+    method: 'GET',
   })
 }

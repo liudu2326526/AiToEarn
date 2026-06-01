@@ -1,4 +1,5 @@
 import { Storage } from "@plasmohq/storage";
+import { isTrustedOrigin } from "~utils/trusted-origin";
 
 const storage = new Storage({ area: "local" });
 
@@ -31,13 +32,7 @@ export const trustDomainMessageHandler = async (request, sender, sendResponse) =
     // 检查域名是否已经被信任
     const trustedDomains = (await storage.get<Array<{ domain: string }>>("trustedDomains")) || [];
     const hostname = new URL(sender.origin).hostname;
-    const isTrusted = trustedDomains.some(({ domain }) => {
-      if (domain.startsWith("*.")) {
-        const wildCardDomain = domain.slice(2);
-        return hostname.endsWith(wildCardDomain);
-      }
-      return hostname === domain;
-    });
+    const isTrusted = isTrustedOrigin(hostname, trustedDomains);
 
     // 如果域名已经被信任，直接返回
     if (isTrusted) {

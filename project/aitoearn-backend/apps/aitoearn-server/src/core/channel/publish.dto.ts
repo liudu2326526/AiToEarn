@@ -163,9 +163,11 @@ export const UpdatePublishRecordWorkLinkSchema = z.object({
 export class UpdatePublishRecordWorkLinkDto extends createZodDto(UpdatePublishRecordWorkLinkSchema) {}
 
 export const UpdatePluginPublishResultSchema = z.object({
-  id: z.string().describe('发布记录ID'),
+  id: z.string().optional().describe('发布记录ID'),
+  traceId: z.string().optional().describe('插件发布请求 traceId，用于发布记录ID丢失时兜底匹配'),
   success: z.boolean().describe('插件发布是否成功'),
   dataId: z.string().optional().describe('平台作品ID或插件请求ID'),
+  noteId: z.string().optional().describe('小红书真实笔记 ID'),
   workLink: z.string().optional().describe('作品链接'),
   authorUserId: z.string().optional().describe('平台作者主页用户ID'),
   xsecToken: z.string().optional().describe('小红书作品 xsec_token'),
@@ -253,3 +255,14 @@ export const UpdatePublishTaskSchema = z.object({
   }).optional(),
 })
 export class UpdatePublishTaskDto extends createZodDto(UpdatePublishTaskSchema) {}
+
+export const UpdateTokenFromPluginDtoSchema = z.object({
+  publishRecordId: z.string().describe('发布记录 ID'),
+  noteId: z.string().describe('笔记 ID'),
+  workLink: z.string().url().describe('完整的作品链接（包含 xsec_token）'),
+  xsecToken: z.string().describe('xsec_token'),
+  xsecSource: z.string().optional().describe('xsec_source'),
+  authorUserId: z.string().optional().describe('作者用户 ID'),
+})
+
+export class UpdateTokenFromPluginDto extends createZodDto(UpdateTokenFromPluginDtoSchema) {}

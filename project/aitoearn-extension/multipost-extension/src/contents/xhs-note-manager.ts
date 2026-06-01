@@ -146,7 +146,13 @@ async function run() {
       traceId: pending.traceId,
       platform: pending.platform,
       success: true,
-      ...(noteLink?.xsecToken ? noteLink : { pendingConfirmation: true }),
+      // 即使没有 token，也回传 workLink，这样后端可以从中提取 noteId 用于自动刷新
+      ...(noteLink?.xsecToken
+        ? noteLink
+        : noteLink?.workLink
+          ? { pendingConfirmation: true, workLink: noteLink.workLink }
+          : { pendingConfirmation: true }
+      ),
     },
   });
 }

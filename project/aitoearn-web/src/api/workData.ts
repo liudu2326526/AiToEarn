@@ -1,8 +1,8 @@
 import http from '@/utils/request'
 import type { AcquisitionDataSource, AcquisitionPlatform } from './acquisition'
 
-export type MonitoredPostStatus = 'active' | 'paused' | 'failed' | 'archived'
-export type MonitoredPostFetchStatus = 'idle' | 'fetching' | 'ready' | 'failed' | 'permission_required' | 'not_configured' | 'pending_confirmation'
+export type MonitoredPostStatus = 'active' | 'paused' | 'failed' | 'archived' | 'published'
+export type MonitoredPostFetchStatus = 'idle' | 'fetching' | 'ready' | 'failed' | 'permission_required' | 'not_configured' | 'pending_confirmation' | 'reviewing'
 
 export interface MonitoredPostItem {
   id: string
@@ -17,6 +17,10 @@ export interface MonitoredPostItem {
   monitorStatus: MonitoredPostStatus
   fetchStatus: MonitoredPostFetchStatus
   capabilityReason: string
+  publishRecordId?: string
+  publishTraceId?: string
+  linkStatus?: string
+  linkError?: string
   latestMetrics: Record<string, number>
   latestCommentCount: number
   lastFetchedAt?: string

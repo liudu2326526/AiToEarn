@@ -26,8 +26,29 @@ interface PublicImageAsset {
   height: number
 }
 
-const DOWNLOAD_URL = '/downloads/aitobee-xhs-bridge.zip'
+const XHS_BRIDGE_DOWNLOAD_URL = '/downloads/aitobee-xhs-bridge.zip'
+const MULTIPOST_DOWNLOAD_URL = '/downloads/multipost-extension-chrome-mv3.zip'
 const EXTENSION_FOLDER = 'xhs-bridge'
+const MULTIPOST_EXTENSION_FOLDER = 'chrome-mv3-prod'
+
+const pluginPackages = [
+  {
+    name: 'AitoBee XHS Bridge',
+    filename: 'aitobee-xhs-bridge.zip',
+    folder: EXTENSION_FOLDER,
+    href: XHS_BRIDGE_DOWNLOAD_URL,
+    description: '用于本地小红书作品、评论数据抓取，连接 ws://127.0.0.1:9333。',
+    badge: '数据抓取',
+  },
+  {
+    name: 'MultiPost Chrome 插件',
+    filename: 'multipost-extension-chrome-mv3.zip',
+    folder: MULTIPOST_EXTENSION_FOLDER,
+    href: MULTIPOST_DOWNLOAD_URL,
+    description: '用于多平台发布自动化、账号同步和小红书发布回扫等 MultiPost 能力。',
+    badge: '发布自动化',
+  },
+] as const
 
 const guideImages = [
   {
@@ -169,6 +190,39 @@ function SectionTitle({ id, icon, title }: { id: string, icon: React.ReactNode, 
   )
 }
 
+function DownloadPackageCard({ item }: { item: typeof pluginPackages[number] }) {
+  return (
+    <div className="rounded-xl border border-sky-100 bg-white/90 p-4 shadow-sm">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <h4 className="text-base font-semibold text-slate-950">{item.name}</h4>
+        <span className="rounded-full border border-sky-100 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700">
+          {item.badge}
+        </span>
+      </div>
+      <p className="mb-3 text-sm leading-6 text-slate-600">{item.description}</p>
+      <div className="mb-4 space-y-1 text-sm text-slate-500">
+        <p>
+          文件：
+          <code className="ml-1 rounded bg-sky-50 px-1.5 py-0.5 text-sky-700">{item.filename}</code>
+        </p>
+        <p>
+          解压后加载：
+          <code className="ml-1 rounded bg-sky-50 px-1.5 py-0.5 text-sky-700">{item.folder}</code>
+        </p>
+      </div>
+      <a
+        href={item.href}
+        download
+        className="inline-flex h-10 items-center gap-2 rounded-md bg-sky-500 px-4 text-sm font-semibold text-white transition hover:bg-sky-600"
+      >
+        <Download className="h-4 w-4" />
+        下载
+        {item.filename}
+      </a>
+    </div>
+  )
+}
+
 export default function PluginGuideContent() {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewIndex, setPreviewIndex] = useState(0)
@@ -214,12 +268,20 @@ export default function PluginGuideContent() {
             </p>
             <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <a
-                href={DOWNLOAD_URL}
+                href={XHS_BRIDGE_DOWNLOAD_URL}
                 download
                 className="inline-flex h-11 items-center gap-2 rounded-md bg-gradient-to-r from-sky-400 to-indigo-500 px-5 text-sm font-semibold text-white shadow-sm shadow-sky-200 transition hover:from-sky-500 hover:to-indigo-600"
               >
                 <Download className="h-4 w-4" />
-                下载插件包
+                下载 XHS Bridge
+              </a>
+              <a
+                href={MULTIPOST_DOWNLOAD_URL}
+                download
+                className="inline-flex h-11 items-center gap-2 rounded-md border border-sky-200 bg-white px-5 text-sm font-semibold text-sky-700 transition hover:bg-sky-50"
+              >
+                <Download className="h-4 w-4" />
+                下载 MultiPost 插件包
               </a>
               <Link
                 href="/zh-CN/xhs-data"
@@ -254,26 +316,21 @@ export default function PluginGuideContent() {
 
             <section className="mb-12">
               <SectionTitle id="download" icon={<Download className="h-5 w-5" />} title="下载插件包" />
-              <StepCard stepNumber={1} title="下载并解压 AitoBee XHS Bridge">
+              <StepCard stepNumber={1} title="下载并解压插件包">
                 <p>
-                  点击页面上方或下方的“下载插件包”，下载
-                  <code className="mx-1 rounded bg-sky-50 px-1.5 py-0.5 text-sky-700">aitobee-xhs-bridge.zip</code>
-                  。下载完成后先解压，得到
-                  <code className="mx-1 rounded bg-sky-50 px-1.5 py-0.5 text-sky-700">{EXTENSION_FOLDER}</code>
-                  文件夹。
+                  这里提供 AitoBee XHS Bridge 和 MultiPost Chrome 插件两个下载包。下载完成后都需要先解压，再在
+                  <code className="mx-1 rounded bg-sky-50 px-1.5 py-0.5 text-sky-700">chrome://extensions</code>
+                  中加载对应的解压文件夹。
                 </p>
-                <a
-                  href={DOWNLOAD_URL}
-                  download
-                  className="inline-flex h-10 items-center gap-2 rounded-md bg-sky-500 px-4 text-sm font-semibold text-white transition hover:bg-sky-600"
-                >
-                  <Download className="h-4 w-4" />
-                  下载 aitobee-xhs-bridge.zip
-                </a>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {pluginPackages.map(item => (
+                    <DownloadPackageCard key={item.filename} item={item} />
+                  ))}
+                </div>
                 <GuideImage
                   image={guideImages[0]}
                   alt="下载并解压 AitoBee XHS Bridge 插件包"
-                  caption="下载后需要先解压，Chrome 加载的是解压后的 xhs-bridge 文件夹。"
+                  caption="下载后需要先解压，Chrome 加载的是解压后的插件文件夹。"
                   onClick={() => openPreview(0)}
                 />
               </StepCard>
@@ -297,8 +354,10 @@ export default function PluginGuideContent() {
 
               <StepCard stepNumber={3} title="选择 xhs-bridge 文件夹">
                 <p>
-                  在文件选择框中选择刚刚解压出来的
+                  安装 AitoBee XHS Bridge 时，在文件选择框中选择刚刚解压出来的
                   <code className="mx-1 rounded bg-sky-50 px-1.5 py-0.5 text-sky-700">{EXTENSION_FOLDER}</code>
+                  文件夹。安装 MultiPost Chrome 插件时，选择解压出来的
+                  <code className="mx-1 rounded bg-sky-50 px-1.5 py-0.5 text-sky-700">{MULTIPOST_EXTENSION_FOLDER}</code>
                   文件夹。不要选择 zip 文件，也不要只选择其中的
                   <code className="mx-1 rounded bg-sky-50 px-1.5 py-0.5 text-sky-700">manifest.json</code>
                   文件。

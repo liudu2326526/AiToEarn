@@ -80,13 +80,14 @@ const WorkDataPage: React.FC = () => {
   const fetchData = async () => {
     setLoading(true)
     try {
-      const res = await listMonitoredPosts({
+      const requestParams = {
         page,
         pageSize,
         ...filters,
-      })
-      setData(res.list)
-      setTotal(res.total)
+      }
+      const monitoredRes = await listMonitoredPosts(requestParams)
+      setData(monitoredRes.list)
+      setTotal(monitoredRes.total)
     } catch (error) {
       console.error(error)
     } finally {
@@ -138,6 +139,7 @@ const WorkDataPage: React.FC = () => {
     ready: data.filter(i => i.fetchStatus === 'ready').length,
     fetching: data.filter(i => i.fetchStatus === 'fetching').length,
     failed: data.filter(i => i.fetchStatus === 'failed').length,
+    reviewing: data.filter(i => i.fetchStatus === 'reviewing').length,
     comments: data.reduce((sum, item) => sum + Number(item.latestCommentCount || 0), 0),
   }
 

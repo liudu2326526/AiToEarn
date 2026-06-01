@@ -35,6 +35,29 @@ export class MonitoredPostRepository extends BaseRepository<MonitoredPost> {
     )
   }
 
+  async upsertPublishedBackfillMonitor(data: Partial<MonitoredPost> & {
+    userId: string
+    platform: string
+    accountId: string
+    postId: string
+    postUrl: string
+    source: string
+  }) {
+    return await this.monitoredPostModel.findOneAndUpdate(
+      { userId: data.userId, platform: data.platform, accountId: data.accountId, postId: data.postId },
+      {
+        $set: data,
+        $setOnInsert: {
+          latestMetrics: {},
+          latestCommentCount: 0,
+          latestPostSnapshotId: '',
+          lastFetchBatch: '',
+        },
+      },
+      { new: true, upsert: true },
+    ).lean({ virtuals: true }).exec()
+  }
+
   async listWithPagination(userId: string, filter: FilterQuery<MonitoredPost>, page: number, pageSize: number): Promise<[MonitoredPost[], number]> {
     const skip = (page - 1) * pageSize
     const query = { ...filter, userId }
