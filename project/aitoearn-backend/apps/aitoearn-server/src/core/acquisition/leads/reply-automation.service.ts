@@ -3,9 +3,11 @@ import { QueueService } from '@yikart/aitoearn-queue'
 import {
   LeadActivityLogRepository,
   LeadReplyExecutorKind,
+  LeadReplyTargetType,
   LeadReplyTaskRepository,
   LeadReplyTaskStatus,
   LeadRepository,
+  LeadSourceType,
 } from '@yikart/channel-db'
 import { AppException, ResponseCode } from '@yikart/common'
 import {
@@ -24,6 +26,10 @@ interface LeadLike {
   postUrl: string
   commentId: string
   parentCommentId?: string
+  postTitle?: string
+  userName?: string
+  sourceContent?: string
+  sourceType?: string
   replyStyle?: string
   suggestedReply?: {
     content?: string
@@ -39,6 +45,8 @@ interface ReplyTaskLike {
   postId?: string
   postUrl?: string
   commentId?: string
+  targetType?: string
+  targetIdentity?: Record<string, unknown>
   replyContent?: string
   status: LeadReplyTaskStatus
 }
@@ -55,8 +63,10 @@ export class ReplyAutomationService {
 
   async createSingleTask(userId: string, id: string, body: AutoReplyLeadDto, operatorId: string) {
     const lead = await this.leadRepository.getByIdAndUser(id, userId) as LeadLike | null
-    if (!lead) throw new AppException(ResponseCode.LeadNotFound)
-    if (lead.platform !== 'xhs') throw new AppException(ResponseCode.PlatformNotSupported)
+    if (!lead)
+      throw new AppException(ResponseCode.LeadNotFound)
+    if (!this.isSupportedReplyPlatform(lead.platform))
+      throw new AppException(ResponseCode.PlatformNotSupported)
 
     const prepared = await this.prepareLead(userId, lead, body.regenerate, operatorId)
     if (body.dryRun) {
@@ -64,15 +74,18 @@ export class ReplyAutomationService {
     }
 
     if (prepared.lead.suggestedReply?.status !== 'blocked') {
-      this.assertExecutableXhsLead(prepared.lead)
+      this.assertExecutableLead(prepared.lead)
     }
 
+    const forcedStatus = body.requireSuggestionReview
+      ? LeadReplyTaskStatus.HumanRequired
+      : this.resolveBatchStatus(prepared.lead)
     const task = await this.createTaskFromLead(
       userId,
       prepared.lead,
       prepared.replyContent,
       operatorId,
-      body.requireSuggestionReview ? LeadReplyTaskStatus.HumanRequired : undefined,
+      forcedStatus,
     )
     if (task.status === LeadReplyTaskStatus.Queued) {
       await this.queueService.addAcquisitionLeadReplyTaskJob({ taskId: task.id })
@@ -101,12 +114,16 @@ export class ReplyAutomationService {
     for (const lead of leads) {
       const prepared = await this.prepareLead(userId, lead, false, operatorId)
       const status = this.resolveBatchStatus(prepared.lead)
-      if (status === LeadReplyTaskStatus.Queued) summary.queued += 1
-      else if (status === LeadReplyTaskStatus.Blocked) summary.blocked += 1
-      else if (status === LeadReplyTaskStatus.HumanRequired) summary.skipped += 1
+      if (status === LeadReplyTaskStatus.Queued)
+        summary.queued += 1
+      else if (status === LeadReplyTaskStatus.Blocked)
+        summary.blocked += 1
+      else if (status === LeadReplyTaskStatus.HumanRequired)
+        summary.skipped += 1
       else summary.failed += 1
 
-      if (body.dryRun) continue
+      if (body.dryRun)
+        continue
 
       const task = await this.createTaskFromLead(
         userId,
@@ -135,9 +152,69 @@ export class ReplyAutomationService {
     }
   }
 
+  async createTasksForLeadIds(
+    userId: string,
+    leadIds: string[],
+    options: {
+      dryRun: boolean
+      targetType: 'public_comment' | 'private_message'
+      limit: number
+    },
+    operatorId: string,
+  ) {
+    const summary = {
+      dryRun: options.dryRun,
+      matched: 0,
+      queued: 0,
+      blocked: 0,
+      skipped: 0,
+      failed: 0,
+      taskIds: [] as string[],
+    }
+
+    for (const leadId of leadIds.slice(0, options.limit)) {
+      const lead = await this.leadRepository.getByIdAndUser(leadId, userId) as LeadLike | null
+      if (!lead) {
+        summary.skipped += 1
+        continue
+      }
+      summary.matched += 1
+
+      const prepared = await this.prepareLead(userId, lead, false, operatorId)
+      const actualTargetType = this.resolveTargetType(prepared.lead)
+      const status = actualTargetType === options.targetType
+        ? this.resolveBatchStatus(prepared.lead, { allowPrivateMessage: true })
+        : LeadReplyTaskStatus.HumanRequired
+
+      if (status === LeadReplyTaskStatus.Queued)
+        summary.queued += 1
+      else if (status === LeadReplyTaskStatus.Blocked)
+        summary.blocked += 1
+      else if (status === LeadReplyTaskStatus.HumanRequired)
+        summary.skipped += 1
+      else summary.failed += 1
+
+      const task = await this.createTaskFromLead(
+        userId,
+        prepared.lead,
+        prepared.replyContent,
+        operatorId,
+        status,
+        options.dryRun,
+      )
+      summary.taskIds.push(task.id)
+      if (task.status === LeadReplyTaskStatus.Queued) {
+        await this.queueService.addAcquisitionLeadReplyTaskJob({ taskId: task.id })
+      }
+    }
+
+    return summary
+  }
+
   async cancelTask(userId: string, taskId: string, operatorId: string) {
     const task = await this.leadReplyTaskRepository.getByIdAndUser(taskId, userId) as ReplyTaskLike | null
-    if (!task) throw new AppException(ResponseCode.ValidationFailed, 'Reply task not found')
+    if (!task)
+      throw new AppException(ResponseCode.ValidationFailed, 'Reply task not found')
     if (![LeadReplyTaskStatus.Pending, LeadReplyTaskStatus.Queued].includes(task.status)) {
       throw new AppException(ResponseCode.ValidationFailed, 'Only pending or queued tasks can be cancelled')
     }
@@ -157,14 +234,15 @@ export class ReplyAutomationService {
 
   async retryTask(userId: string, taskId: string, operatorId: string) {
     const task = await this.leadReplyTaskRepository.getByIdAndUser(taskId, userId) as ReplyTaskLike | null
-    if (!task) throw new AppException(ResponseCode.ValidationFailed, 'Reply task not found')
-    if (task.platform !== 'xhs') {
-      throw new AppException(ResponseCode.ValidationFailed, 'Only Xiaohongshu reply tasks can be retried')
+    if (!task)
+      throw new AppException(ResponseCode.ValidationFailed, 'Reply task not found')
+    if (!this.isSupportedReplyPlatform(task.platform)) {
+      throw new AppException(ResponseCode.ValidationFailed, 'Unsupported reply task platform')
     }
     if (![LeadReplyTaskStatus.Failed, LeadReplyTaskStatus.HumanRequired].includes(task.status)) {
       throw new AppException(ResponseCode.ValidationFailed, 'Only failed or human-required tasks can be retried')
     }
-    this.assertExecutableXhsTask(task)
+    this.assertExecutableTask(task)
 
     const updated = await this.leadReplyTaskRepository.markQueued(task.id)
     await this.queueService.addAcquisitionLeadReplyTaskJob({ taskId: task.id })
@@ -192,10 +270,20 @@ export class ReplyAutomationService {
     }
   }
 
-  private resolveBatchStatus(lead: LeadLike) {
-    if (lead.platform !== 'xhs') return LeadReplyTaskStatus.HumanRequired
-    if (lead.suggestedReply?.status === 'blocked') return LeadReplyTaskStatus.Blocked
-    if (!this.hasExecutableXhsFields(lead)) return LeadReplyTaskStatus.HumanRequired
+  private resolveBatchStatus(lead: LeadLike, options: { allowPrivateMessage?: boolean } = {}) {
+    if (!this.isSupportedReplyPlatform(lead.platform))
+      return LeadReplyTaskStatus.HumanRequired
+    if (lead.suggestedReply?.status === 'blocked')
+      return LeadReplyTaskStatus.Blocked
+    if (
+      lead.platform === 'douyin'
+      && this.resolveTargetType(lead) === LeadReplyTargetType.PrivateMessage
+      && !options.allowPrivateMessage
+    ) {
+      return LeadReplyTaskStatus.HumanRequired
+    }
+    if (!this.hasExecutableFields(lead))
+      return LeadReplyTaskStatus.HumanRequired
     return LeadReplyTaskStatus.Queued
   }
 
@@ -205,10 +293,12 @@ export class ReplyAutomationService {
     replyContent: string,
     operatorId: string,
     forcedStatus?: LeadReplyTaskStatus,
+    dryRun?: boolean,
   ) {
     const status = forcedStatus
       || (lead.suggestedReply?.status === 'blocked' ? LeadReplyTaskStatus.Blocked : LeadReplyTaskStatus.Queued)
     const lastError = this.resolveTaskError(lead, status)
+    const taskDryRun = dryRun ?? lead.platform === 'douyin'
     const task = await this.leadReplyTaskRepository.create({
       userId,
       leadId: lead.id,
@@ -218,12 +308,15 @@ export class ReplyAutomationService {
       postUrl: lead.postUrl,
       commentId: lead.commentId,
       parentCommentId: lead.parentCommentId || '',
+      targetType: this.resolveTargetType(lead),
+      targetIdentity: this.buildTargetIdentity(lead),
       replyContent,
       replyStyle: lead.replyStyle || 'auto',
       status,
-      executorKind: LeadReplyExecutorKind.BrowserPlugin,
+      executorKind: this.resolveExecutorKind(lead.platform),
+      dryRun: taskDryRun,
       attemptCount: 0,
-      rateKey: `${userId}:${lead.platform}:${lead.accountId}`,
+      rateKey: `${userId}:${lead.platform}:${lead.accountId}:${this.resolveTargetType(lead)}`,
       lastError,
     } as any)
 
@@ -242,35 +335,102 @@ export class ReplyAutomationService {
       return `blocked: ${(lead.suggestedReply?.riskHits || []).join(',')}`.trim()
     }
     if (status === LeadReplyTaskStatus.HumanRequired) {
-      if (lead.platform !== 'xhs') return 'platform_not_supported'
-      if (!lead.commentId) return 'missing_comment_id'
-      if (!lead.postId) return 'missing_post_id'
-      if (!lead.postUrl) return 'missing_post_url'
-      if (!String(lead.postUrl).includes('xsec_token=')) return 'missing_xsec_token'
+      if (!this.isSupportedReplyPlatform(lead.platform))
+        return 'platform_not_supported'
+      if (lead.platform === 'xhs') {
+        if (!lead.commentId)
+          return 'missing_comment_id'
+        if (!lead.postId)
+          return 'missing_post_id'
+        if (!lead.postUrl)
+          return 'missing_post_url'
+        if (!String(lead.postUrl).includes('xsec_token='))
+          return 'missing_xsec_token'
+      }
+      if (lead.platform === 'douyin') {
+        if (this.resolveTargetType(lead) === LeadReplyTargetType.PrivateMessage)
+          return 'private_message_requires_explicit_confirmation'
+        if (!lead.userName)
+          return 'missing_target_user_name'
+        if (!lead.sourceContent)
+          return 'missing_source_content'
+        if (this.resolveTargetType(lead) === LeadReplyTargetType.PublicComment && !lead.postTitle)
+          return 'missing_post_title'
+      }
     }
     return ''
   }
 
-  private assertExecutableXhsLead(lead: LeadLike) {
-    if (!this.hasExecutableXhsFields(lead)) {
+  private assertExecutableLead(lead: LeadLike) {
+    if (!this.hasExecutableFields(lead)) {
       throw new AppException(ResponseCode.ValidationFailed, this.resolveTaskError(lead, LeadReplyTaskStatus.HumanRequired))
     }
   }
 
-  private assertExecutableXhsTask(task: ReplyTaskLike) {
-    if (!task.postId) throw new AppException(ResponseCode.ValidationFailed, 'missing_post_id')
-    if (!task.postUrl) throw new AppException(ResponseCode.ValidationFailed, 'missing_post_url')
-    if (!String(task.postUrl).includes('xsec_token=')) throw new AppException(ResponseCode.ValidationFailed, 'missing_xsec_token')
-    if (!task.commentId) throw new AppException(ResponseCode.ValidationFailed, 'missing_comment_id')
-    if (!String(task.replyContent || '').trim()) throw new AppException(ResponseCode.ValidationFailed, 'missing_reply_content')
+  private assertExecutableTask(task: ReplyTaskLike) {
+    if (task.platform === 'xhs') {
+      if (!task.postId)
+        throw new AppException(ResponseCode.ValidationFailed, 'missing_post_id')
+      if (!task.postUrl)
+        throw new AppException(ResponseCode.ValidationFailed, 'missing_post_url')
+      if (!String(task.postUrl).includes('xsec_token='))
+        throw new AppException(ResponseCode.ValidationFailed, 'missing_xsec_token')
+      if (!task.commentId)
+        throw new AppException(ResponseCode.ValidationFailed, 'missing_comment_id')
+    }
+    if (task.platform === 'douyin' && !task.targetIdentity) {
+      throw new AppException(ResponseCode.ValidationFailed, 'missing_target_identity')
+    }
+    if (!String(task.replyContent || '').trim())
+      throw new AppException(ResponseCode.ValidationFailed, 'missing_reply_content')
   }
 
-  private hasExecutableXhsFields(lead: LeadLike) {
+  private hasExecutableFields(lead: LeadLike) {
+    if (lead.platform === 'douyin') {
+      const hasCommonFields = Boolean(lead.userName && lead.sourceContent)
+      if (this.resolveTargetType(lead) === LeadReplyTargetType.PrivateMessage)
+        return hasCommonFields
+      return Boolean(hasCommonFields && lead.postTitle)
+    }
+
     return Boolean(
       lead.commentId
       && lead.postId
       && lead.postUrl
       && String(lead.postUrl).includes('xsec_token='),
     )
+  }
+
+  private isSupportedReplyPlatform(platform: string) {
+    return platform === 'xhs' || platform === 'douyin'
+  }
+
+  private resolveExecutorKind(platform: string) {
+    return platform === 'douyin' ? LeadReplyExecutorKind.DouyinCreatorCli : LeadReplyExecutorKind.BrowserPlugin
+  }
+
+  private resolveTargetType(lead: LeadLike) {
+    return lead.sourceType === LeadSourceType.PrivateMessage
+      ? LeadReplyTargetType.PrivateMessage
+      : LeadReplyTargetType.PublicComment
+  }
+
+  private buildTargetIdentity(lead: LeadLike) {
+    if (lead.platform !== 'douyin')
+      return {}
+    if (this.resolveTargetType(lead) === LeadReplyTargetType.PrivateMessage) {
+      return {
+        conversationUsername: lead.userName || '',
+        lastMessage: lead.sourceContent || '',
+        lastMessageTime: lead.postTitle || '',
+      }
+    }
+
+    return {
+      postTitle: lead.postTitle || '',
+      postPublishText: '',
+      commentUserName: lead.userName || '',
+      commentText: lead.sourceContent || '',
+    }
   }
 }

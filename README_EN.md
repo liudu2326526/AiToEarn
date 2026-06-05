@@ -102,6 +102,7 @@ Automate engagement operations across all supported platforms via the AiToEarn b
 - **AI Smart Replies**: Use LLMs to generate targeted replies for each comment
 - **Comment Mining**: Detect high-conversion signals like "link please" or "how to buy" and respond instantly
 - **Brand Monitoring**: Track brand mentions in real-time and proactively join trending conversations
+- **Local Douyin Creator Center automation**: In the China environment, a local `douyin-creator-tools` installation and visible Playwright browser can import Douyin comments/existing DM conversations, prepare local publish dry-run commands, and queue comment or DM reply tasks after dry-run review. Configure `DOUYIN_CREATOR_TOOLS_DIR` and `DOUYIN_CREATOR_PROFILE_DIR`; this is not intended for unattended cloud sending.
 
 > ▶ Watch Demo Video
 

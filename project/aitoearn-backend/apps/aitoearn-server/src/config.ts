@@ -35,6 +35,28 @@ const moreApiConfigSchema = z.object({
   platApiUri: z.string().default(''),
 })
 
+function booleanFromEnv(value: string | undefined, fallback: boolean) {
+  if (value === undefined || value === '')
+    return fallback
+  return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase())
+}
+
+const douyinCreatorAutomationDefaultConfig = {
+  toolsDir: process.env['DOUYIN_CREATOR_TOOLS_DIR'] || '',
+  profileDir: process.env['DOUYIN_CREATOR_PROFILE_DIR'] || '',
+  outputDir: process.env['DOUYIN_CREATOR_OUTPUT_DIR'] || '/tmp/aitoearn-douyin-creator',
+  timeoutMs: Number(process.env['DOUYIN_CREATOR_TIMEOUT_MS'] || 180000),
+  defaultDryRun: booleanFromEnv(process.env['DOUYIN_CREATOR_DEFAULT_DRY_RUN'], true),
+}
+
+const douyinCreatorAutomationConfigSchema = z.object({
+  toolsDir: z.string().default(douyinCreatorAutomationDefaultConfig.toolsDir),
+  profileDir: z.string().default(douyinCreatorAutomationDefaultConfig.profileDir),
+  outputDir: z.string().default(douyinCreatorAutomationDefaultConfig.outputDir),
+  timeoutMs: z.number().default(douyinCreatorAutomationDefaultConfig.timeoutMs),
+  defaultDryRun: z.boolean().default(douyinCreatorAutomationDefaultConfig.defaultDryRun),
+}).default(douyinCreatorAutomationDefaultConfig)
+
 export const newApiConfigSchema = z.object({
   baseUrl: z.string(),
   token: z.string(),
@@ -201,6 +223,7 @@ export const appConfigSchema = z.object({
   aiClient: aitoearnAiClientConfigSchema,
   newApi: newApiConfigSchema.optional(),
   channel: channelConfigSchema,
+  douyinCreatorAutomation: douyinCreatorAutomationConfigSchema,
   relay: relayConfigSchema.optional(),
 })
 

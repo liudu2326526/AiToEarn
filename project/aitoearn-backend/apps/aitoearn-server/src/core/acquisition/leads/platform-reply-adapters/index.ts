@@ -1,9 +1,12 @@
 export interface PlatformReplyRequest {
   taskId: string
-  postId: string
-  postUrl: string
-  commentId: string
+  targetType?: 'public_comment' | 'private_message'
+  targetIdentity?: Record<string, unknown>
+  postId?: string
+  postUrl?: string
+  commentId?: string
   replyContent: string
+  dryRun?: boolean
 }
 
 export interface PlatformReplyResult {
@@ -15,5 +18,5 @@ export interface PlatformReplyResult {
 }
 
 export interface PlatformReplyAdapter {
-  execute(request: PlatformReplyRequest): Promise<PlatformReplyResult>
+  execute: (request: PlatformReplyRequest) => Promise<PlatformReplyResult>
 }

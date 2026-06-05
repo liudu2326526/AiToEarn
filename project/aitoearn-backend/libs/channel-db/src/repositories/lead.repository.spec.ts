@@ -3,18 +3,43 @@ import { LeadRepository } from './lead.repository'
 
 function createModel() {
   return {
+    find: vi.fn(),
     findOneAndUpdate: vi.fn(),
     countDocuments: vi.fn(),
     deleteOne: vi.fn(),
   }
 }
 
-describe('LeadRepository', () => {
+describe('leadRepository', () => {
   const model = createModel()
-  // @ts-ignore
   const repository = new LeadRepository(model as any)
 
   beforeEach(() => vi.clearAllMocks())
+
+  it('filters leads by source type when listing by user', async () => {
+    const execFind = vi.fn().mockResolvedValue([])
+    const lean = vi.fn().mockReturnValue({ exec: execFind })
+    model.find.mockReturnValue({ lean })
+    model.countDocuments.mockReturnValue({ exec: vi.fn().mockResolvedValue(0) })
+
+    await repository.listByUser('user-1', {
+      sourceType: 'private_message',
+      page: 1,
+      pageSize: 20,
+    } as any)
+
+    expect(model.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-1',
+        sourceType: 'private_message',
+      }),
+      undefined,
+      expect.objectContaining({
+        skip: 0,
+        limit: 20,
+      }),
+    )
+  })
 
   it('reads includeResultMetadata upsert results without chaining lean', async () => {
     const exec = vi.fn().mockResolvedValue({
@@ -168,5 +193,65 @@ describe('LeadRepository', () => {
       commentId: 'comment-2',
       parentCommentId: 'root-1',
     }), undefined)
+  })
+
+  it('creates or updates a private message lead using a pseudo post identity', async () => {
+    const exec = vi.fn().mockResolvedValue({
+      value: {
+        _id: 'lead-dm-1',
+        toObject: () => ({
+          _id: 'lead-dm-1',
+          userId: 'user-1',
+          platform: 'douyin',
+          accountId: 'account-1',
+          postId: 'private_message',
+          commentId: 'dm:user-a',
+          sourceType: 'private_message',
+        }),
+      },
+      lastErrorObject: {
+        upserted: 'lead-dm-1',
+      },
+    })
+    model.findOneAndUpdate.mockReturnValue({ exec })
+
+    const result = await repository.createOrUpdateByPrivateMessage({
+      userId: 'user-1',
+      platform: 'douyin',
+      accountId: 'account-1',
+      userName: '用户A',
+      sourceContent: '滴滴滴',
+      externalConversationId: 'dm:user-a',
+      lastMessageTime: '刚刚',
+    })
+
+    expect(result.created).toBe(true)
+    expect(result.lead?.id).toBe('lead-dm-1')
+    expect(model.findOneAndUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-1',
+        platform: 'douyin',
+        accountId: 'account-1',
+        postId: 'private_message',
+        commentId: 'dm:user-a',
+        parentCommentId: '',
+      }),
+      expect.objectContaining({
+        $setOnInsert: expect.objectContaining({
+          sourceType: 'private_message',
+          stage: 'messaged',
+          status: 'in_progress',
+        }),
+        $set: expect.objectContaining({
+          userName: '用户A',
+          sourceContent: '滴滴滴',
+        }),
+      }),
+      expect.objectContaining({
+        new: true,
+        upsert: true,
+        includeResultMetadata: true,
+      }),
+    )
   })
 })
