@@ -1,8 +1,8 @@
-import { AppException, ResponseCode } from '@yikart/common'
+import { ResponseCode } from '@yikart/common'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ReplyAutomationService } from './reply-automation.service'
 
-describe('ReplyAutomationService', () => {
+describe('replyAutomationService', () => {
   const leadRepository = {
     getByIdAndUser: vi.fn(),
     listByUser: vi.fn(),
@@ -53,16 +53,53 @@ describe('ReplyAutomationService', () => {
     )
   })
 
-  it('blocks non-xhs leads in MVP', async () => {
-    leadRepository.getByIdAndUser.mockResolvedValue({
-      ...safeXhsLead,
-      platform: 'douyin',
-    })
+  const safeDouyinCommentLead = {
+    ...safeXhsLead,
+    id: 'lead-douyin-comment',
+    platform: 'douyin',
+    postId: 'creator-work:1',
+    postUrl: '',
+    commentId: 'creator-comment:1',
+    postTitle: '作品标题',
+    userName: '用户A',
+    sourceContent: '想了解',
+    sourceType: 'public_comment',
+  }
 
-    await expect(service.createSingleTask('user-1', 'lead-1', {} as any, 'operator-1'))
-      .rejects.toMatchObject(new AppException(ResponseCode.PlatformNotSupported))
-    expect(leadReplyTaskRepository.create).not.toHaveBeenCalled()
-    expect(queueService.addAcquisitionLeadReplyTaskJob).not.toHaveBeenCalled()
+  const safeDouyinDmLead = {
+    ...safeXhsLead,
+    id: 'lead-douyin-dm',
+    platform: 'douyin',
+    postId: 'private_message',
+    postUrl: '',
+    commentId: 'dm:abc',
+    postTitle: '刚刚',
+    userName: '睡不醒镁人',
+    sourceContent: '滴滴滴',
+    sourceType: 'private_message',
+  }
+
+  it('creates a dry-run douyin public-comment reply task through generic auto reply', async () => {
+    leadRepository.getByIdAndUser.mockResolvedValue(safeDouyinCommentLead)
+    leadReplyTaskRepository.create.mockResolvedValue({ id: 'task-douyin-1', status: 'queued' })
+
+    const result = await service.createSingleTask('user-1', 'lead-douyin-comment', {} as any, 'operator-1')
+
+    expect(result.task).toEqual(expect.objectContaining({ id: 'task-douyin-1', status: 'queued' }))
+    expect(leadReplyTaskRepository.create).toHaveBeenCalledWith(expect.objectContaining({
+      leadId: 'lead-douyin-comment',
+      platform: 'douyin',
+      executorKind: 'douyin_creator_cli',
+      targetType: 'public_comment',
+      dryRun: true,
+      targetIdentity: expect.objectContaining({
+        postTitle: '作品标题',
+        commentUserName: '用户A',
+        commentText: '想了解',
+      }),
+      rateKey: 'user-1:douyin:account-1:public_comment',
+    }))
+    expect(queueService.addAcquisitionLeadReplyTaskJob).toHaveBeenCalledWith({ taskId: 'task-douyin-1' })
   })
 
   it('does not enqueue blocked suggestions', async () => {
@@ -98,7 +135,7 @@ describe('ReplyAutomationService', () => {
       replyContent: '可以看主页同款入口哦',
       status: 'queued',
       executorKind: 'browser_plugin',
-      rateKey: 'user-1:xhs:account-1',
+      rateKey: 'user-1:xhs:account-1:public_comment',
     }))
     expect(queueService.addAcquisitionLeadReplyTaskJob).toHaveBeenCalledWith({ taskId: 'task-1' })
   })
@@ -121,9 +158,93 @@ describe('ReplyAutomationService', () => {
     expect(queueService.addAcquisitionLeadReplyTaskJob).not.toHaveBeenCalled()
   })
 
+  it('creates dry-run tasks for explicit douyin lead ids', async () => {
+    leadRepository.getByIdAndUser.mockResolvedValue(safeDouyinDmLead)
+    leadReplyTaskRepository.create.mockResolvedValue({ id: 'task-dm-1', status: 'queued' })
+
+    const result = await service.createTasksForLeadIds('user-1', ['lead-douyin-dm'], {
+      dryRun: true,
+      targetType: 'private_message',
+      limit: 20,
+    }, 'operator-1')
+
+    expect(result).toEqual(expect.objectContaining({
+      dryRun: true,
+      queued: 1,
+      taskIds: ['task-dm-1'],
+    }))
+    expect(leadReplyTaskRepository.create).toHaveBeenCalledWith(expect.objectContaining({
+      leadId: 'lead-douyin-dm',
+      targetType: 'private_message',
+      dryRun: true,
+      targetIdentity: expect.objectContaining({
+        conversationUsername: '睡不醒镁人',
+        lastMessage: '滴滴滴',
+        lastMessageTime: '刚刚',
+      }),
+    }))
+  })
+
+  it('creates confirmed-send tasks only through explicit douyin lead id confirmation', async () => {
+    leadRepository.getByIdAndUser.mockResolvedValue(safeDouyinCommentLead)
+    leadReplyTaskRepository.create.mockResolvedValue({ id: 'task-comment-send', status: 'queued' })
+
+    const result = await service.createTasksForLeadIds('user-1', ['lead-douyin-comment'], {
+      dryRun: false,
+      targetType: 'public_comment',
+      limit: 20,
+    }, 'operator-1')
+
+    expect(result).toEqual(expect.objectContaining({
+      dryRun: false,
+      queued: 1,
+      taskIds: ['task-comment-send'],
+    }))
+    expect(leadReplyTaskRepository.create).toHaveBeenCalledWith(expect.objectContaining({
+      leadId: 'lead-douyin-comment',
+      targetType: 'public_comment',
+      dryRun: false,
+    }))
+  })
+
+  it('keeps douyin private messages human-required in generic auto reply flows', async () => {
+    leadRepository.getByIdAndUser.mockResolvedValue(safeDouyinDmLead)
+    leadReplyTaskRepository.create.mockResolvedValue({ id: 'task-dm-review', status: 'human_required' })
+
+    const single = await service.createSingleTask('user-1', 'lead-douyin-dm', {} as any, 'operator-1')
+
+    expect(single.task).toEqual(expect.objectContaining({ status: 'human_required' }))
+    expect(leadReplyTaskRepository.create).toHaveBeenCalledWith(expect.objectContaining({
+      leadId: 'lead-douyin-dm',
+      targetType: 'private_message',
+      status: 'human_required',
+      lastError: 'private_message_requires_explicit_confirmation',
+    }))
+    expect(queueService.addAcquisitionLeadReplyTaskJob).not.toHaveBeenCalled()
+  })
+
+  it('keeps douyin private messages human-required in batch auto reply', async () => {
+    leadRepository.listByUser.mockResolvedValue([[safeDouyinDmLead], 1])
+    leadReplyTaskRepository.create.mockResolvedValue({ id: 'task-dm-review', status: 'human_required' })
+
+    const result = await service.createBatchTasks('user-1', {
+      limit: 20,
+      dryRun: false,
+      onlyPending: true,
+    } as any, 'operator-1')
+
+    expect(result).toEqual(expect.objectContaining({
+      matched: 1,
+      queued: 0,
+      skipped: 1,
+      taskIds: ['task-dm-review'],
+    }))
+    expect(queueService.addAcquisitionLeadReplyTaskJob).not.toHaveBeenCalled()
+  })
+
   it('does not retry unsupported or terminal tasks', async () => {
     for (const task of [
-      { id: 'task-1', platform: 'douyin', status: 'failed' },
+      { id: 'task-1', platform: 'kwai', status: 'failed' },
       { id: 'task-2', platform: 'xhs', status: 'blocked' },
       { id: 'task-3', platform: 'xhs', status: 'cancelled' },
       { id: 'task-4', platform: 'xhs', status: 'success' },
@@ -131,7 +252,8 @@ describe('ReplyAutomationService', () => {
     ]) {
       leadReplyTaskRepository.getByIdAndUser.mockResolvedValueOnce(task)
       await expect(service.retryTask('user-1', task.id, 'operator-1'))
-        .rejects.toMatchObject({ code: ResponseCode.ValidationFailed })
+        .rejects
+        .toMatchObject({ code: ResponseCode.ValidationFailed })
     }
 
     expect(queueService.addAcquisitionLeadReplyTaskJob).not.toHaveBeenCalled()

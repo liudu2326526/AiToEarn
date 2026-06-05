@@ -8,6 +8,7 @@ export enum AcquisitionDataSource {
   XhsPluginApi = 'xhs_plugin_api',
   XhsBridgeCapture = 'xhs_bridge_capture',
   DouyinOpenApi = 'douyin_open_api',
+  DouyinCreatorCenter = 'douyin_creator_center',
   ManualSnapshot = 'manual_snapshot',
   DemoSeed = 'demo_seed',
 }

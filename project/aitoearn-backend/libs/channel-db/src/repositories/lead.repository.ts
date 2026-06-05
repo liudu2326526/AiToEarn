@@ -21,14 +21,23 @@ export class LeadRepository extends BaseRepository<Lead> {
     status?: string
     assignee?: string
     keyword?: string
+    sourceType?: string
   }) {
     const query: FilterQuery<Lead> = { userId }
-    if (filter.platform) query.platform = filter.platform
-    if (filter.accountId) query.accountId = filter.accountId
-    if (filter.postId) query.postId = filter.postId
-    if (filter.stage) query.stage = filter.stage
-    if (filter.status) query.status = filter.status
-    if (filter.assignee !== undefined) query.assignee = filter.assignee
+    if (filter.platform)
+      query.platform = filter.platform
+    if (filter.accountId)
+      query.accountId = filter.accountId
+    if (filter.postId)
+      query.postId = filter.postId
+    if (filter.stage)
+      query.stage = filter.stage
+    if (filter.status)
+      query.status = filter.status
+    if (filter.sourceType)
+      query.sourceType = filter.sourceType
+    if (filter.assignee !== undefined)
+      query.assignee = filter.assignee
     if (filter.keyword) {
       query.$or = [
         { userName: { $regex: filter.keyword, $options: 'i' } },
@@ -47,6 +56,7 @@ export class LeadRepository extends BaseRepository<Lead> {
     status?: string
     assignee?: string
     keyword?: string
+    sourceType?: string
     page: number
     pageSize: number
   }) {
@@ -68,6 +78,7 @@ export class LeadRepository extends BaseRepository<Lead> {
     status?: string
     assignee?: string
     keyword?: string
+    sourceType?: string
   }) {
     const baseQuery = this.buildListQuery(userId, filter)
     const [total, pending, inProgress, converted, lost, invalid] = await Promise.all([
@@ -106,7 +117,7 @@ export class LeadRepository extends BaseRepository<Lead> {
     userName: string
     userAvatar: string
     sourceContent: string
-  }): Promise<{ lead: Lead | null; created: boolean }> {
+  }): Promise<{ lead: Lead | null, created: boolean }> {
     const identity = {
       userId: input.userId,
       platform: input.platform,
@@ -139,6 +150,65 @@ export class LeadRepository extends BaseRepository<Lead> {
           postTitle: input.postTitle || '',
           postUrl: input.postUrl || '',
           postCover: input.postCover || '',
+        },
+      } as any,
+      {
+        new: true,
+        upsert: true,
+        includeResultMetadata: true,
+      } as any,
+    ).exec() as any
+
+    const value = result?.value || null
+    const plainValue = value && typeof value.toObject === 'function'
+      ? value.toObject({ virtuals: true })
+      : value
+    const lead = plainValue ? { ...plainValue, id: plainValue.id || String(plainValue._id) } : null
+
+    return {
+      lead,
+      created: Boolean(result?.lastErrorObject?.upserted),
+    }
+  }
+
+  async createOrUpdateByPrivateMessage(input: {
+    userId: string
+    platform: string
+    accountId: string
+    userName: string
+    userAvatar?: string
+    sourceContent: string
+    externalConversationId: string
+    lastMessageTime?: string
+  }): Promise<{ lead: Lead | null, created: boolean }> {
+    // Pseudo post/comment identity lets private-message leads reuse the existing unique lead index.
+    const identity = {
+      userId: input.userId,
+      platform: input.platform,
+      accountId: input.accountId,
+      postId: 'private_message',
+      commentId: input.externalConversationId,
+      parentCommentId: '',
+    }
+
+    const result = await this.leadModel.findOneAndUpdate(
+      identity,
+      {
+        $setOnInsert: {
+          ...identity,
+          sourceType: LeadSourceType.PrivateMessage,
+          stage: LeadStage.Messaged,
+          status: LeadStatus.InProgress,
+          replyStyle: LeadReplyStyle.Auto,
+          lastFollowUpAt: new Date(),
+        },
+        $set: {
+          userName: input.userName,
+          userAvatar: input.userAvatar || '',
+          sourceContent: input.sourceContent,
+          postTitle: input.lastMessageTime || '',
+          postUrl: '',
+          postCover: '',
         },
       } as any,
       {

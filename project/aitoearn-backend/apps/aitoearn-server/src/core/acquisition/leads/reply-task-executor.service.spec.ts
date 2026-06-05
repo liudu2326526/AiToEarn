@@ -1,7 +1,8 @@
+import { AppException, ResponseCode } from '@yikart/common'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ReplyTaskExecutorService } from './reply-task-executor.service'
 
-describe('ReplyTaskExecutorService', () => {
+describe('replyTaskExecutorService', () => {
   const leadReplyTaskRepository = {
     getById: vi.fn(),
     markRunning: vi.fn(),
@@ -74,6 +75,7 @@ describe('ReplyTaskExecutorService', () => {
         success: false,
         needHumanAssist: true,
         failureReason: '需要验证',
+        platformReplyId: 'dry-run:1',
       }),
     })
 
@@ -81,6 +83,7 @@ describe('ReplyTaskExecutorService', () => {
 
     expect(leadReplyTaskRepository.markTerminal).toHaveBeenCalledWith('task-1', 'human_required', expect.objectContaining({
       lastError: '需要验证',
+      platformReplyId: 'dry-run:1',
     }))
     expect(leadActivityLogRepository.append).toHaveBeenCalledWith(expect.objectContaining({
       action: 'reply_task_human_required',
@@ -102,6 +105,24 @@ describe('ReplyTaskExecutorService', () => {
     expect(replyExecutionService.recordResult).not.toHaveBeenCalled()
   })
 
+  it('marks task human_required when the platform adapter is not supported', async () => {
+    leadReplyTaskRepository.getById.mockResolvedValue({ ...task, platform: 'unsupported' })
+    leadReplyTaskRepository.markRunning.mockResolvedValue({ ...task, platform: 'unsupported', status: 'running' })
+    platformReplyAdapterRegistry.get.mockImplementation(() => {
+      throw new AppException(ResponseCode.PlatformNotSupported)
+    })
+
+    await service.execute('task-1', 'operator-1')
+
+    expect(leadReplyTaskRepository.markTerminal).toHaveBeenCalledWith('task-1', 'human_required', {
+      lastError: 'platform_not_supported',
+    })
+    expect(leadActivityLogRepository.append).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'reply_task_human_required',
+      note: 'platform_not_supported',
+    }))
+  })
+
   it('does not execute cancelled task', async () => {
     leadReplyTaskRepository.getById.mockResolvedValue({ ...task, status: 'cancelled' })
 
@@ -109,6 +130,80 @@ describe('ReplyTaskExecutorService', () => {
 
     expect(platformReplyAdapterRegistry.get).not.toHaveBeenCalled()
     expect(leadReplyTaskRepository.markRunning).not.toHaveBeenCalled()
+  })
+
+  it('executes douyin creator private-message task through the platform registry', async () => {
+    const execute = vi.fn().mockResolvedValue({ success: true, platformReplyId: 'douyin-dm-sent:1' })
+    leadReplyTaskRepository.getById.mockResolvedValue({
+      ...task,
+      platform: 'douyin',
+      postId: 'private_message',
+      postUrl: '',
+      commentId: 'dm:abc',
+      targetType: 'private_message',
+      targetIdentity: {
+        conversationUserName: '睡不醒镁人',
+        lastMessage: '滴滴滴',
+        lastMessageTime: '刚刚',
+      },
+      dryRun: false,
+    })
+    leadReplyTaskRepository.markRunning.mockResolvedValue({
+      ...task,
+      platform: 'douyin',
+      status: 'running',
+      postId: 'private_message',
+      postUrl: '',
+      commentId: 'dm:abc',
+      targetType: 'private_message',
+      targetIdentity: {
+        conversationUserName: '睡不醒镁人',
+        lastMessage: '滴滴滴',
+        lastMessageTime: '刚刚',
+      },
+      dryRun: false,
+    })
+    platformReplyAdapterRegistry.get.mockReturnValue({ execute })
+    leadReplyTaskRepository.markTerminal.mockResolvedValue({ ...task, platform: 'douyin', status: 'success' })
+
+    await service.execute('task-1', 'operator-1')
+
+    expect(platformReplyAdapterRegistry.get).toHaveBeenCalledWith('douyin')
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({
+      taskId: 'task-1',
+      targetType: 'private_message',
+      targetIdentity: expect.objectContaining({ conversationUserName: '睡不醒镁人' }),
+      postId: 'private_message',
+      commentId: 'dm:abc',
+      dryRun: false,
+      replyContent: '可以看主页同款入口哦',
+    }))
+    expect(leadReplyTaskRepository.markTerminal).toHaveBeenCalledWith('task-1', 'success', expect.objectContaining({
+      platformReplyId: 'douyin-dm-sent:1',
+    }))
+  })
+
+  it('does not coerce missing douyin dryRun to confirmed send', async () => {
+    const execute = vi.fn().mockResolvedValue({ success: false, needHumanAssist: true, failureReason: 'dry_run_completed' })
+    const douyinTask = {
+      ...task,
+      platform: 'douyin',
+      targetType: 'public_comment',
+      targetIdentity: {
+        postTitle: '作品标题',
+        commentUserName: '用户A',
+        commentText: '想了解',
+      },
+    }
+    leadReplyTaskRepository.getById.mockResolvedValue(douyinTask)
+    leadReplyTaskRepository.markRunning.mockResolvedValue({ ...douyinTask, status: 'running' })
+    platformReplyAdapterRegistry.get.mockReturnValue({ execute })
+
+    await service.execute('task-1', 'operator-1')
+
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({
+      dryRun: undefined,
+    }))
   })
 
   it('uploads screenshot evidence when adapter returns screenshotDataUrl', async () => {

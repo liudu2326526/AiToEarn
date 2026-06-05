@@ -18,9 +18,12 @@ import { ContentScheduleService } from './content/content-schedule.service'
 import { HookSelectionService } from './content/hook-selection.service'
 import { PlatformContentAdapterService } from './content/platform-content-adapter.service'
 import { StrategyTemplateService } from './content/strategy-template.service'
+import { DouyinCreatorAutomationController } from './douyin-creator-automation/douyin-creator-automation.controller'
+import { DouyinCreatorAutomationModule } from './douyin-creator-automation/douyin-creator-automation.module'
 import { AcquisitionLeadsController } from './leads/acquisition-leads.controller'
 import { LeadManagementService } from './leads/lead-management.service'
 import { LeadMaterializationService } from './leads/lead-materialization.service'
+import { DouyinCreatorReplyAdapter } from './leads/platform-reply-adapters/douyin-creator-reply.adapter'
 import { PlatformReplyAdapterRegistry } from './leads/platform-reply-adapters/registry'
 import { XhsBrowserPluginReplyAdapter } from './leads/platform-reply-adapters/xhs-browser-plugin-reply.adapter'
 import { ReplyAutomationService } from './leads/reply-automation.service'
@@ -31,12 +34,12 @@ import { ReplyTaskScreenshotService } from './leads/reply-task-screenshot.servic
 import { DouyinAcquisitionProvider } from './providers/douyin/douyin-acquisition.provider'
 import { XhsBridgeAcquisitionProvider } from './providers/xhs/xhs-bridge-acquisition.provider'
 import { SnapshotPersistenceService } from './snapshot-persistence.service'
-import { XhsTokenRefreshService } from './xhs-token-refresh.service'
+import { WorkDataController } from './work-data/work-data.controller'
+import { WorkDataService } from './work-data/work-data.service'
 import { AcquisitionCommentFetchConsumer } from './workers/acquisition-comment-fetch.consumer'
 import { AcquisitionPostBackfillConsumer } from './workers/acquisition-post-backfill.consumer'
 import { LeadReplyTaskConsumer } from './workers/lead-reply-task.consumer'
-import { WorkDataController } from './work-data/work-data.controller'
-import { WorkDataService } from './work-data/work-data.service'
+import { XhsTokenRefreshService } from './xhs-token-refresh.service'
 
 @Module({
   imports: [
@@ -48,12 +51,14 @@ import { WorkDataService } from './work-data/work-data.service'
     AitoearnAiClientModule,
     PublishModule,
     ChannelSharedModule,
+    DouyinCreatorAutomationModule,
   ],
   controllers: [
     AcquisitionController,
     AcquisitionContentController,
     WorkDataController,
     AcquisitionLeadsController,
+    DouyinCreatorAutomationController,
   ],
   providers: [
     AcquisitionService,
@@ -79,6 +84,7 @@ import { WorkDataService } from './work-data/work-data.service'
     ReplyTaskExecutorService,
     ReplyTaskScreenshotService,
     XhsBrowserPluginReplyAdapter,
+    DouyinCreatorReplyAdapter,
     PlatformReplyAdapterRegistry,
     XhsTokenRefreshService,
     {

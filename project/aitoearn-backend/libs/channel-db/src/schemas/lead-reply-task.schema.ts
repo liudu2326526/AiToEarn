@@ -18,6 +18,12 @@ export enum LeadReplyTaskStatus {
 
 export enum LeadReplyExecutorKind {
   BrowserPlugin = 'browser_plugin',
+  DouyinCreatorCli = 'douyin_creator_cli',
+}
+
+export enum LeadReplyTargetType {
+  PublicComment = 'public_comment',
+  PrivateMessage = 'private_message',
 }
 
 @Schema({ ...DEFAULT_SCHEMA_OPTIONS, collection: 'lead_reply_task' })
@@ -36,17 +42,23 @@ export class LeadReplyTask extends BaseTemp {
   @Prop({ required: true, index: true, type: String })
   accountId: string
 
-  @Prop({ required: true, index: true, type: String })
+  @Prop({ type: String, default: '', index: true })
   postId: string
 
-  @Prop({ required: true, type: String })
+  @Prop({ type: String, default: '' })
   postUrl: string
 
-  @Prop({ required: true, index: true, type: String })
+  @Prop({ type: String, default: '', index: true })
   commentId: string
 
   @Prop({ type: String, default: '' })
   parentCommentId: string
+
+  @Prop({ required: true, enum: LeadReplyTargetType, default: LeadReplyTargetType.PublicComment, index: true, type: String })
+  targetType: LeadReplyTargetType
+
+  @Prop({ type: Object, default: () => ({}) })
+  targetIdentity: Record<string, unknown>
 
   @Prop({ required: true, type: String })
   replyContent: string
@@ -59,6 +71,9 @@ export class LeadReplyTask extends BaseTemp {
 
   @Prop({ required: true, enum: LeadReplyExecutorKind, default: LeadReplyExecutorKind.BrowserPlugin, type: String })
   executorKind: LeadReplyExecutorKind
+
+  @Prop({ type: Boolean, default: false })
+  dryRun: boolean
 
   @Prop({ type: Number, default: 0 })
   attemptCount: number

@@ -4,6 +4,7 @@ import { z } from 'zod'
 export const LeadStageSchema = z.enum(['new_comment', 'replied', 'messaged', 'wechat_guided', 'wechat_added', 'lost'])
 export const LeadStatusSchema = z.enum(['pending', 'in_progress', 'converted', 'lost', 'invalid'])
 export const LeadPlatformSchema = z.enum(['xhs', 'douyin', 'kwai'])
+export const LeadSourceTypeSchema = z.enum(['public_comment', 'private_message', 'manual'])
 export const LeadReplyStyleSchema = z.enum(['auto', 'friendly', 'professional', 'promotion', 'restrained'])
 
 export const LeadListQuerySchema = z.object({
@@ -12,6 +13,7 @@ export const LeadListQuerySchema = z.object({
   postId: z.string().optional(),
   stage: LeadStageSchema.optional(),
   status: LeadStatusSchema.optional(),
+  sourceType: LeadSourceTypeSchema.optional(),
   assignee: z.string().optional(),
   keyword: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),

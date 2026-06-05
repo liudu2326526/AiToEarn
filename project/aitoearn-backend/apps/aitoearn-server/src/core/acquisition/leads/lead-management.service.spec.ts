@@ -2,7 +2,7 @@ import { AppException, ResponseCode } from '@yikart/common'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LeadManagementService } from './lead-management.service'
 
-describe('LeadManagementService', () => {
+describe('leadManagementService', () => {
   const leadRepository = {
     listByUser: vi.fn(),
     statsByUser: vi.fn(),
@@ -16,11 +16,19 @@ describe('LeadManagementService', () => {
   const monitoredPostRepository = {
     findByUserPostIdentities: vi.fn(),
   }
+  const douyinCreatorCliService = {
+    getStatus: vi.fn(),
+  }
   let service: LeadManagementService
 
   beforeEach(() => {
     vi.clearAllMocks()
-    service = new LeadManagementService(leadRepository as any, leadActivityLogRepository as any, monitoredPostRepository as any)
+    service = new LeadManagementService(
+      leadRepository as any,
+      leadActivityLogRepository as any,
+      monitoredPostRepository as any,
+      douyinCreatorCliService as any,
+    )
   })
 
   it('changes stage and derives working status', async () => {
@@ -129,11 +137,82 @@ describe('LeadManagementService', () => {
     expect(leadRepository.statsByUser).toHaveBeenCalledWith('user-1', expect.objectContaining({ platform: 'xhs' }))
   })
 
+  it('reports douyin creator private-message capability from local CLI status', async () => {
+    douyinCreatorCliService.getStatus.mockResolvedValue({
+      configured: true,
+      toolsDir: '/Users/macbook/Documents/trae_projects/douyin-creator-tools',
+      profileDir: '/Users/macbook/Documents/trae_projects/douyin-creator-tools/.playwright/douyin-profile',
+      outputDir: '/tmp/aitoearn-douyin-creator',
+      message: 'ready_to_probe',
+    })
+
+    const result = await service.privateMessageCapability('user-1', {
+      platform: 'douyin',
+      accountId: 'account-1',
+    } as any)
+
+    expect(result.list).toEqual([
+      expect.objectContaining({
+        platform: 'douyin',
+        accountId: 'account-1',
+        status: 'manual_required',
+        reason: expect.stringContaining('Douyin Creator Center local automation is configured'),
+      }),
+    ])
+  })
+
+  it('reports douyin creator capability as not_supported when tool dir is missing', async () => {
+    douyinCreatorCliService.getStatus.mockResolvedValue({
+      configured: false,
+      toolsDir: '',
+      profileDir: '',
+      outputDir: '/tmp/aitoearn-douyin-creator',
+      message: 'douyin_creator_tools_dir_not_found',
+    })
+
+    const result = await service.privateMessageCapability('user-1', {
+      platform: 'douyin',
+    } as any)
+
+    expect(result.list).toEqual([
+      expect.objectContaining({
+        platform: 'douyin',
+        status: 'not_supported',
+        reason: expect.stringContaining('not configured'),
+      }),
+    ])
+  })
+
+  it('reports douyin creator capability as ready after a recent successful probe', async () => {
+    douyinCreatorCliService.getStatus.mockResolvedValue({
+      configured: true,
+      ready: true,
+      toolsDir: '/Users/macbook/Documents/trae_projects/douyin-creator-tools',
+      profileDir: '/Users/macbook/Documents/trae_projects/douyin-creator-tools/.playwright/douyin-profile',
+      outputDir: '/tmp/aitoearn-douyin-creator',
+      lastSuccessfulRunAt: '2026-06-05T00:00:00.000Z',
+      message: 'ready',
+    })
+
+    const result = await service.privateMessageCapability('user-1', {
+      platform: 'douyin',
+    } as any)
+
+    expect(result.list).toEqual([
+      expect.objectContaining({
+        platform: 'douyin',
+        status: 'ready',
+        reason: expect.stringContaining('recent successful'),
+      }),
+    ])
+  })
+
   it('does not expose another users timeline', async () => {
     leadRepository.getByIdAndUser.mockResolvedValue(null)
 
     await expect(service.timeline('user-1', 'lead-1'))
-      .rejects.toMatchObject(new AppException(ResponseCode.LeadNotFound))
+      .rejects
+      .toMatchObject(new AppException(ResponseCode.LeadNotFound))
     expect(leadActivityLogRepository.listByLeadId).not.toHaveBeenCalled()
   })
 

@@ -1,28 +1,38 @@
 import type React from 'react'
-import { Button, Card, Input, Select, Space } from 'antd'
-import { ReloadOutlined, ThunderboltOutlined, UserSwitchOutlined } from '@ant-design/icons'
-import type { AcquisitionPlatform } from '@/api/acquisition'
-import type { LeadStage, LeadStatus } from '@/api/leads'
 import type { LeadLabels, LeadPostOption } from '../types'
+import type { AcquisitionPlatform } from '@/api/acquisition'
+import type { LeadSourceType, LeadStage, LeadStatus } from '@/api/leads'
+import { DownloadOutlined, FormOutlined, ReloadOutlined, ThunderboltOutlined, UserSwitchOutlined } from '@ant-design/icons'
+import { Button, Card, Input, Select, Space } from 'antd'
 
 interface LeadToolbarProps {
   labels: LeadLabels
   platform?: AcquisitionPlatform
   stage?: LeadStage
   status?: LeadStatus
+  sourceType?: LeadSourceType
   postId?: string
   postOptions: LeadPostOption[]
   materializing: boolean
+  importingDouyinComments: boolean
+  importingDouyinDms: boolean
+  preparingDouyinPublish: boolean
+  douyinCreatorConfigured: boolean
   autoSelecting: boolean
   autoReplying: boolean
   hasSelection: boolean
   onPlatformChange: (value?: AcquisitionPlatform) => void
   onStageChange: (value?: LeadStage) => void
   onStatusChange: (value?: LeadStatus) => void
+  onSourceTypeChange: (value?: LeadSourceType) => void
   onPostChange: (value?: string) => void
   onSearch: (value: string) => void
   onRefresh: () => void
   onMaterialize: () => void
+  onImportDouyinComments: () => void
+  onImportDouyinDms: () => void
+  onPrepareDouyinPublish: () => void
+  onRefreshDouyinStatus: () => void
   onAutoSelectReplyStyle: () => void
   onBatchAutoReply: () => void
   onBatchAssign: () => void
@@ -94,19 +104,29 @@ const LeadToolbar: React.FC<LeadToolbarProps> = ({
   platform,
   stage,
   status,
+  sourceType,
   postId,
   postOptions,
   materializing,
+  importingDouyinComments,
+  importingDouyinDms,
+  preparingDouyinPublish,
+  douyinCreatorConfigured,
   autoSelecting,
   autoReplying,
   hasSelection,
   onPlatformChange,
   onStageChange,
   onStatusChange,
+  onSourceTypeChange,
   onPostChange,
   onSearch,
   onRefresh,
   onMaterialize,
+  onImportDouyinComments,
+  onImportDouyinDms,
+  onPrepareDouyinPublish,
+  onRefreshDouyinStatus,
   onAutoSelectReplyStyle,
   onBatchAutoReply,
   onBatchAssign,
@@ -149,6 +169,14 @@ const LeadToolbar: React.FC<LeadToolbarProps> = ({
         />
         <Select
           allowClear
+          placeholder={labels.ui.sourceType}
+          value={sourceType}
+          style={{ width: 132 }}
+          onChange={onSourceTypeChange}
+          options={toOptions(labels.sourceType)}
+        />
+        <Select
+          allowClear
           showSearch
           placeholder={labels.ui.post}
           value={postId}
@@ -167,6 +195,36 @@ const LeadToolbar: React.FC<LeadToolbarProps> = ({
       <Space style={actionsStyle}>
         <Button style={pillButtonStyle} icon={<ReloadOutlined />} onClick={onRefresh}>{labels.ui.refresh}</Button>
         <Button type="primary" style={primaryPillButtonStyle} loading={materializing} onClick={onMaterialize}>{labels.ui.materialize}</Button>
+        <Button
+          style={softBluePillButtonStyle}
+          icon={<DownloadOutlined />}
+          loading={importingDouyinComments}
+          disabled={!douyinCreatorConfigured}
+          onClick={onImportDouyinComments}
+        >
+          {labels.ui.importDouyinComments}
+        </Button>
+        <Button
+          style={softBluePillButtonStyle}
+          icon={<DownloadOutlined />}
+          loading={importingDouyinDms}
+          disabled={!douyinCreatorConfigured}
+          onClick={onImportDouyinDms}
+        >
+          {labels.ui.importDouyinDms}
+        </Button>
+        <Button
+          style={softBluePillButtonStyle}
+          icon={<FormOutlined />}
+          loading={preparingDouyinPublish}
+          disabled={!douyinCreatorConfigured}
+          onClick={onPrepareDouyinPublish}
+        >
+          {labels.ui.prepareDouyinPublish}
+        </Button>
+        <Button style={pillButtonStyle} icon={<ReloadOutlined />} onClick={onRefreshDouyinStatus}>
+          {labels.ui.refreshDouyinStatus}
+        </Button>
         <Button
           style={softBluePillButtonStyle}
           icon={<ThunderboltOutlined />}

@@ -4,6 +4,7 @@ import {
   LeadReplyTaskRepository,
   LeadReplyTaskStatus,
 } from '@yikart/channel-db'
+import { AppException, ResponseCode } from '@yikart/common'
 import { PlatformReplyAdapterRegistry } from './platform-reply-adapters/registry'
 import { ReplyExecutionService } from './reply-execution.service'
 import { ReplyTaskScreenshotService } from './reply-task-screenshot.service'
@@ -16,7 +17,10 @@ interface ReplyTask {
   postId: string
   postUrl: string
   commentId: string
+  targetType?: 'public_comment' | 'private_message'
+  targetIdentity?: Record<string, unknown>
   replyContent: string
+  dryRun?: boolean
   status: LeadReplyTaskStatus
 }
 
@@ -32,22 +36,10 @@ export class ReplyTaskExecutorService {
 
   async execute(taskId: string, operatorId = 'system') {
     const task = await this.leadReplyTaskRepository.getById(taskId) as ReplyTask | null
-    if (!task) return null
-    if (task.status === LeadReplyTaskStatus.Cancelled) return task
-
-    if (task.platform !== 'xhs') {
-      await this.leadReplyTaskRepository.markTerminal(task.id, LeadReplyTaskStatus.HumanRequired, {
-        lastError: 'platform_not_supported',
-      })
-      await this.leadActivityLogRepository.append({
-        userId: task.userId,
-        leadId: task.leadId,
-        action: 'reply_task_human_required',
-        operatorId,
-        note: 'platform_not_supported',
-      })
+    if (!task)
       return null
-    }
+    if (task.status === LeadReplyTaskStatus.Cancelled)
+      return task
 
     const runningTask = await this.leadReplyTaskRepository.markRunning(task.id) as ReplyTask | null
     const executableTask = runningTask || task
@@ -56,10 +48,13 @@ export class ReplyTaskExecutorService {
       const adapter = this.platformReplyAdapterRegistry.get(executableTask.platform)
       const adapterResult = await adapter.execute({
         taskId: executableTask.id,
+        targetType: executableTask.targetType || 'public_comment',
+        targetIdentity: executableTask.targetIdentity || {},
         postId: executableTask.postId,
         postUrl: executableTask.postUrl,
         commentId: executableTask.commentId,
         replyContent: executableTask.replyContent,
+        dryRun: executableTask.dryRun,
       })
 
       const screenshotPatch: { screenshotUrl?: string } = {}
@@ -71,7 +66,8 @@ export class ReplyTaskExecutorService {
             executableTask.id,
             adapterResult.screenshotDataUrl,
           )
-          if (screenshotUrl) screenshotPatch.screenshotUrl = screenshotUrl
+          if (screenshotUrl)
+            screenshotPatch.screenshotUrl = screenshotUrl
         }
         catch (error) {
           screenshotUploadError = error instanceof Error ? error.message : String(error)
@@ -107,6 +103,7 @@ export class ReplyTaskExecutorService {
       ].filter(Boolean).join('; ')
       const updated = await this.leadReplyTaskRepository.markTerminal(executableTask.id, terminalStatus, {
         ...screenshotPatch,
+        platformReplyId: adapterResult.platformReplyId || '',
         lastError,
       })
 
@@ -131,6 +128,20 @@ export class ReplyTaskExecutorService {
       return updated
     }
     catch (error) {
+      if (error instanceof AppException && error.code === ResponseCode.PlatformNotSupported) {
+        const updated = await this.leadReplyTaskRepository.markTerminal(executableTask.id, LeadReplyTaskStatus.HumanRequired, {
+          lastError: 'platform_not_supported',
+        })
+        await this.leadActivityLogRepository.append({
+          userId: executableTask.userId,
+          leadId: executableTask.leadId,
+          action: 'reply_task_human_required',
+          operatorId,
+          note: 'platform_not_supported',
+        })
+        return updated
+      }
+
       const lastError = error instanceof Error ? error.message : String(error)
       const updated = await this.leadReplyTaskRepository.markTerminal(executableTask.id, LeadReplyTaskStatus.Failed, {
         lastError,

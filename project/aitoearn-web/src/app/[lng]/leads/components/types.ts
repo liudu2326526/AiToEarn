@@ -1,10 +1,11 @@
 import type { AcquisitionPlatform } from '@/api/acquisition'
-import type { LeadReplyStyle, LeadStage, LeadStatus } from '@/api/leads'
+import type { LeadReplyStyle, LeadSourceType, LeadStage, LeadStatus } from '@/api/leads'
 import type { MonitoredPostItem } from '@/api/workData'
 
 export interface LeadLabels {
   stage: Record<LeadStage, string>
   status: Record<LeadStatus, string>
+  sourceType: Record<LeadSourceType, string>
   replyStyle: Record<LeadReplyStyle, string>
   platform: Record<AcquisitionPlatform, string>
   capabilityStatus: Record<string, string>

@@ -1,10 +1,10 @@
 import type React from 'react'
-import { Avatar, Button, Card, Empty, Input, List, Select, Space, Spin, Tag, Timeline, Typography } from 'antd'
-import { CheckCircleOutlined, MessageOutlined, RobotOutlined } from '@ant-design/icons'
-import dayjs from 'dayjs'
-import type { LeadActivityItem, LeadItem, LeadReplyStyle, LeadReplyTaskItem } from '@/api/leads'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import type { LeadLabels } from '../types'
+import type { LeadActivityItem, LeadItem, LeadReplyStyle, LeadReplyTaskItem } from '@/api/leads'
+import { CheckCircleOutlined, MessageOutlined, RobotOutlined, SendOutlined } from '@ant-design/icons'
+import { Avatar, Button, Card, Empty, Input, List, Select, Space, Spin, Tag, Timeline, Typography } from 'antd'
+import dayjs from 'dayjs'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import ReplyTaskStatusTag from '../ReplyTaskStatusTag'
 
 const { Text } = Typography
@@ -31,6 +31,8 @@ interface LeadDetailDrawerProps {
   onClose: () => void
   onGenerateSuggestion: () => Promise<void>
   onAutoReply: () => Promise<void>
+  onDouyinDryRunReply: () => Promise<void>
+  onDouyinConfirmReply: () => Promise<void>
   onCancelReplyTask: (taskId: string) => Promise<void>
   onRetryReplyTask: (taskId: string) => Promise<void>
   onUpdateStage: (stage: LeadItem['stage']) => Promise<void>
@@ -50,6 +52,8 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
   onClose,
   onGenerateSuggestion,
   onAutoReply,
+  onDouyinDryRunReply,
+  onDouyinConfirmReply,
   onCancelReplyTask,
   onRetryReplyTask,
   onUpdateStage,
@@ -57,12 +61,25 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
   onRecordReplied,
   onAddNote,
 }) => {
-  if (!open) return null
+  if (!open)
+    return null
 
   const postTitle = activeLead?.postTitle || activeLead?.postId
+  const hasCompletedDouyinDryRun = Boolean(activeLead?.platform === 'douyin' && replyTasks.some(task =>
+    task.executorKind === 'douyin_creator_cli'
+    && task.dryRun
+    && task.status === 'human_required'
+    && task.lastError === 'dry_run_completed',
+  ))
 
   return (
-    <Dialog open={open} onOpenChange={nextOpen => { if (!nextOpen) onClose() }}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen)
+          onClose()
+      }}
+    >
       <DialogContent
         data-testid="lead-detail-dialog"
         className="max-h-[calc(100dvh-24px)] overflow-hidden border-white/70 bg-white/90 p-0 shadow-[0_24px_80px_rgba(15,23,42,0.18)] backdrop-blur-xl sm:max-w-[min(1080px,calc(100vw-48px))]"
@@ -131,7 +148,20 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
                     extra={(
                       <Space wrap>
                         <Button size="small" icon={<RobotOutlined />} onClick={onGenerateSuggestion}>{labels.ui.generate}</Button>
-                        <Button size="small" type="primary" loading={autoReplying} onClick={onAutoReply}>{labels.ui.generateAndReply}</Button>
+                        {activeLead.platform === 'douyin' ? (
+                          <>
+                            <Button size="small" type="primary" loading={autoReplying} onClick={onDouyinDryRunReply}>
+                              {labels.ui.douyinDryRunReply}
+                            </Button>
+                            {hasCompletedDouyinDryRun ? (
+                              <Button size="small" danger icon={<SendOutlined />} loading={autoReplying} onClick={onDouyinConfirmReply}>
+                                {labels.ui.douyinConfirmReply}
+                              </Button>
+                            ) : null}
+                          </>
+                        ) : (
+                          <Button size="small" type="primary" loading={autoReplying} onClick={onAutoReply}>{labels.ui.generateAndReply}</Button>
+                        )}
                       </Space>
                     )}
                     style={detailCardStyle}
@@ -142,7 +172,12 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
                         <Text style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{activeLead.suggestedReply.content}</Text>
                         <Tag color={activeLead.suggestedReply.status === 'blocked' ? 'red' : 'green'}>{activeLead.suggestedReply.status}</Tag>
                         {activeLead.suggestedReply.riskHits?.length > 0 && (
-                          <Text type="danger" style={{ wordBreak: 'break-word' }}>{labels.ui.riskHits}: {activeLead.suggestedReply.riskHits.join(', ')}</Text>
+                          <Text type="danger" style={{ wordBreak: 'break-word' }}>
+                            {labels.ui.riskHits}
+                            :
+                            {' '}
+                            {activeLead.suggestedReply.riskHits.join(', ')}
+                          </Text>
                         )}
                       </Space>
                     ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={labels.ui.noSuggestion} />}
@@ -174,9 +209,10 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
                       rows={3}
                       placeholder={labels.ui.addNote}
                       style={{ marginTop: 12 }}
-                      onPressEnter={async event => {
+                      onPressEnter={async (event) => {
                         const note = event.currentTarget.value.trim()
-                        if (!note) return
+                        if (!note)
+                          return
                         await onAddNote(note)
                         event.currentTarget.value = ''
                       }}
